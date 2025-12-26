@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Автобусы Sunset Town</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel для компиляции JSX в браузере -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS с настройкой Dark Mode -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class', // Включаем режим переключения по классу
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: '#1e293b',
+                            900: '#0f172a',
+                            950: '#020617',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        
+        /* Скрытие полосы прокрутки */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Анимация пульсации для геометки */
+        @keyframes ping-slow {
+            75%, 100% { transform: scale(2); opacity: 0; }
+        }
+        .animate-ping-slow {
+            animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+
+        /* Анимация колес автобуса */
+        @keyframes bounce-bus {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-1px); }
+        }
+        .animate-bus {
+            animation: bounce-bus 0.5s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-500">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- КООРДИНАТЫ ОСТАНОВОК (Примерные координаты на Фукуоке) ---
+        const STOP_COORDINATES = {
+            "Khem Beach Station": { lat: 10.0435, lng: 104.0260 },
+            "New World Resort": { lat: 10.0410, lng: 104.0240 },
+            "Premier Residences": { lat: 10.0390, lng: 104.0220 },
+            "Vui-Fest Bazaar": { lat: 10.0240, lng: 104.0070 },
+            "Sun World Hon Thom": { lat: 10.0255, lng: 104.0055 }, 
+            "Sun World": { lat: 10.0255, lng: 104.0055 },
+            "Sailing Club": { lat: 10.1450, lng: 103.9750 },
+            "Best Western": { lat: 10.1550, lng: 103.9720 },
+            "Long Beach Center": { lat: 10.1980, lng: 103.9650 },
+            "Seashells Hotel": { lat: 10.2160, lng: 103.9560 }
+        };
+
+        // --- ВСТРОЕННЫЕ ИКОНКИ (SVG) ---
+        
+        const BusIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+                <path d="M18 11.0056C17.9972 10.8711 17.9861 10.7389 17.9611 10.6083C17.6583 9.06667 16.3278 7.91389 14.7139 7.82222L14.6556 7.82222H9.36667L9.27778 7.825C7.68056 7.925 6.36389 9.07222 6.05 10.5972C6.01667 10.7417 5.99722 10.8889 5.99444 11.0361C5.99444 11.0389 5.99444 11.0417 5.99444 11.0417V15.7639C5.99444 16.5917 6.66667 17.2639 7.49444 17.2639H7.66944C7.81944 17.2639 7.96111 17.225 8.08889 17.1528C8.24167 17.5194 8.60556 17.7778 9.02778 17.7778C9.53611 17.7778 9.96111 17.4167 10.0639 16.9361H13.9167C14.0222 17.4194 14.4444 17.7778 14.9528 17.7778C15.375 17.7778 15.7361 17.5194 15.8917 17.1556C16.0222 17.225 16.1667 17.2639 16.3194 17.2639H16.4944C17.3222 17.2639 17.9944 16.5917 17.9944 15.7639V11.0389C18 11.025 18 11.0139 18 11.0056ZM9.02778 16.7361C8.74167 16.7361 8.51111 16.5056 8.51111 16.2194C8.51111 15.9333 8.74167 15.7028 9.02778 15.7028C9.31389 15.7028 9.54444 15.9333 9.54444 16.2194C9.54444 16.5056 9.31389 16.7361 9.02778 16.7361ZM14.9528 16.7361C14.6667 16.7361 14.4361 16.5056 14.4361 16.2194C14.4361 15.9333 14.6667 15.7028 14.9528 15.7028C15.2389 15.7028 15.4694 15.9333 15.4694 16.2194C15.4694 16.5056 15.2389 16.7361 14.9528 16.7361ZM16.4861 13.9028H7.50556V11.2361C7.54444 10.3389 8.35833 9.53333 9.36667 9.53333H14.6444C15.65 9.53333 16.4639 10.3306 16.4861 11.2333V13.9028Z" />
+            </svg>
+        );
+
+        const ArrowIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <path d="M21 12H3" /><path d="M17 8l4 4-4 4" />
+            </svg>
+        );
+
+        const ClockIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+        );
+
+        const InfoIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
+            </svg>
+        );
+
+        const BeachIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M13 8c0-2.76-2.46-5-5.5-5S2 5.24 2 8h2c0-1.66 1.57-3 3.5-3S11 6.34 11 8h2z" />
+                <path d="M13 7.14A5.82 5.82 0 0 1 16.5 6c3.04 0 5.5 2.24 5.5 5h-2c0-1.66-1.57-3-3.5-3c-1.25 0-2.34.56-3.03 1.44" />
+                <path d="M12 22v-9" />
+                <path d="M12 13a4 4 0 0 0 4 3" />
+                <path d="M12 13a4 4 0 0 1-4 3" />
+                <path d="M4 22h16" />
+            </svg>
+        );
+
+        const CityIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 22h20" />
+                <path d="M17 22v-6" />
+                <path d="M14 22v-9a2 2 0 0 1 2-2h1" />
+                <path d="M10 22V5a2 2 0 0 1 2-2h1" />
+                <path d="M7 22V9a2 2 0 0 1 2-2h1" />
+                <path d="M4 22v-5a2 2 0 0 1 2-2h1" />
+            </svg>
+        );
+        
+        const HourglassIcon = () => (
+             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 22h14" />
+              <path d="M5 2h14" />
+              <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" />
+              <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
+            </svg>
+        );
+
+        const LocationIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+        );
+
+        const SunIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+        );
+
+        const MoonIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-200">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+        );
+
+        // --- ДАННЫЕ РАСПИСАНИЯ ---
+
+        const ROUTES = {
+            1: {
+                id: 1,
+                name: "На Пляж (Khem Beach)",
+                shortName: "Пляж (Khem)",
+                icon: <BeachIcon />,
+                desc: "Маршрут к пляжу Khem Beach и курортам",
+                color: "bg-blue-600",
+                stops: {
+                    forward: ["Sun World Hon Thom", "Vui-Fest Bazaar", "New World Resort", "Khem Beach Station"],
+                    backward: ["Khem Beach Station", "New World Resort", "Vui-Fest Bazaar", "Sun World Hon Thom"]
+                },
+                schedule: {
+                    forward: [
+                        ["09:00", "-", "09:15", "09:30"],
+                        ["10:00", "-", "10:15", "10:30"],
+                        ["11:00", "-", "11:15", "11:30"],
+                        ["12:00", "-", "12:15", "12:30"],
+                        ["14:00", "-", "14:15", "14:30"],
+                        ["15:00", "-", "15:15", "15:30"],
+                        ["17:00", "-", "17:15", "17:30"],
+                        ["18:00", "18:10", "18:20", "18:30"],
+                        ["18:30", "18:40", "18:50", "19:00"],
+                        ["19:00", "19:10", "19:20", "19:30"],
+                        ["19:30", "19:40", "19:50", "20:00"],
+                        ["20:00", "20:10", "20:20", "20:30"],
+                        ["20:30", "20:40", "20:50", "21:00"],
+                        ["21:00", "21:10", "21:20", "21:30"],
+                        ["21:30", "21:40", "21:50", "22:00"]
+                    ],
+                    backward: [
+                        ["08:30", "08:40", "-", "09:00"],
+                        ["09:30", "09:40", "-", "10:00"],
+                        ["10:30", "10:40", "-", "11:00"],
+                        ["11:30", "11:40", "-", "12:00"],
+                        ["13:30", "13:40", "-", "14:00"],
+                        ["14:30", "14:40", "-", "15:00"],
+                        ["16:30", "16:40", "-", "17:00"],
+                        ["17:30", "17:40", "17:50", "18:00"],
+                        ["18:00", "18:10", "18:20", "18:30"],
+                        ["18:30", "18:40", "18:50", "19:00"],
+                        ["19:00", "19:10", "19:20", "19:30"],
+                        ["19:30", "19:40", "19:50", "20:00"],
+                        ["20:00", "20:10", "20:20", "20:30"],
+                        ["20:30", "20:40", "20:50", "21:00"],
+                        ["21:00", "21:10", "21:20", "21:30"]
+                    ]
+                }
+            },
+            2: {
+                id: 2,
+                name: "В Город (Duong Dong)",
+                shortName: "Город (D.Dong)",
+                icon: <CityIcon />,
+                desc: "Маршрут в центр города (Duong Dong)",
+                color: "bg-teal-600",
+                stops: {
+                    forward: ["Premier Residences", "Sun World", "Vui-Fest Bazaar", "Sailing Club", "Best Western", "Long Beach Center", "Seashells Hotel"],
+                    backward: ["Seashells Hotel", "Long Beach Center", "Best Western", "Sailing Club", "Vui-Fest Bazaar", "Sun World", "Premier Residences"]
+                },
+                schedule: {
+                    forward: [
+                        ["07:30", "-", "-", "-", "-", "-", "08:00"],
+                        ["08:00", "-", "-", "-", "-", "-", "08:30"],
+                        ["09:30", "09:40", "-", "09:55", "10:05", "10:20", "10:30"],
+                        ["10:00", "10:10", "-", "10:25", "10:35", "10:50", "11:00"],
+                        ["14:00", "14:10", "-", "14:25", "14:35", "14:50", "15:00"],
+                        ["14:30", "14:40", "-", "14:55", "15:05", "15:20", "15:30"],
+                        ["18:00", "-", "18:10", "18:25", "18:35", "18:50", "19:00"],
+                        ["18:30", "-", "18:40", "18:55", "19:05", "19:20", "19:30"],
+                        ["-", "-", "21:45", "22:00", "22:10", "22:25", "22:35"]
+                    ],
+                    backward: [
+                        ["08:15", "08:25", "08:40", "08:50", "-", "09:05", "09:15"],
+                        ["08:45", "08:55", "09:10", "09:20", "-", "09:35", "09:45"],
+                        ["10:45", "10:55", "11:10", "11:20", "-", "11:35", "11:45"],
+                        ["11:15", "11:25", "11:40", "11:50", "-", "12:05", "12:15"],
+                        ["15:15", "15:25", "15:40", "15:50", "-", "16:05", "16:15"],
+                        ["15:45", "15:55", "16:10", "16:20", "-", "16:35", "16:45"],
+                        ["19:15", "19:25", "19:40", "19:50", "20:05", "-", "20:15"],
+                        ["19:45", "19:55", "20:10", "20:20", "20:35", "-", "20:45"]
+                    ]
+                }
+            }
+        };
+
+        // --- ГЕОЛОКАЦИЯ И УТИЛИТЫ ---
+
+        const calculateDistance = (lat1, lon1, lat2, lon2) => {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        };
+
+        const getMinutes = (timeStr) => {
+            if (!timeStr || timeStr === "-") return -1;
+            try {
+                const [h, m] = timeStr.split(':').map(Number);
+                return h * 60 + m;
+            } catch (e) {
+                return -1;
+            }
+        };
+
+        const getCurrentMinutes = () => {
+            const now = new Date();
+            return now.getHours() * 60 + now.getMinutes();
+        };
+
+        const isPast = (timeStr, currentMins) => {
+            const mins = getMinutes(timeStr);
+            return mins !== -1 && mins < currentMins;
+        };
+
+        const formatTimeLeft = (diffMins) => {
+            if (diffMins < 60) {
+                return `через ${diffMins} мин`;
+            }
+            const h = Math.floor(diffMins / 60);
+            const m = diffMins % 60;
+            return `через ${h} ч ${m} мин`;
+        };
+
+        // --- КОМПОНЕНТЫ ---
+
+        const Header = ({ activeRoute, setActiveRoute, isDark }) => (
+            <div className="sticky top-0 z-30 bg-white dark:bg-slate-900 shadow-sm transition-colors duration-500">
+                <div className="bg-slate-900 dark:bg-slate-950 text-white p-4 pb-4 rounded-b-3xl shadow-lg transition-colors duration-500">
+                    <div className="flex justify-between items-start mb-4">
+                        <h1 className="text-xl font-bold flex items-center gap-2">
+                            <BusIcon className="w-6 h-6 text-yellow-400" />
+                            <span>Автобусы Sunset Town</span>
+                        </h1>
+                        <div className="text-xs flex items-center gap-1 opacity-70 bg-white/10 px-2 py-1 rounded-full">
+                            {isDark ? <MoonIcon /> : <SunIcon />}
+                            <span>{isDark ? 'Ночь' : 'День'}</span>
+                        </div>
+                    </div>
+                    <div className="flex bg-slate-800 dark:bg-slate-900 rounded-xl p-1 gap-1 transition-colors duration-500">
+                        {Object.keys(ROUTES).map(id => {
+                            const route = ROUTES[id];
+                            const isActive = activeRoute === Number(id);
+                            return (
+                                <button
+                                    key={id}
+                                    onClick={() => setActiveRoute(Number(id))}
+                                    className={`flex-1 py-3 px-1 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                                        isActive
+                                        ? 'bg-yellow-400 text-slate-900 shadow-md'
+                                        : 'text-slate-400 dark:text-slate-500 hover:text-white hover:bg-slate-700 dark:hover:bg-slate-800'
+                                    }`}
+                                >
+                                    <span className={isActive ? 'text-slate-900' : 'text-slate-500'}>
+                                        {route.icon}
+                                    </span>
+                                    <span>{route.shortName}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <div className="mt-3 text-center text-slate-400 text-xs font-medium">
+                        {ROUTES[activeRoute].desc}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const DirectionToggle = ({ routeData, direction, setDirection }) => {
+            const isForward = direction === 'forward';
+            const stops = routeData.stops.forward;
+            const startPoint = stops[0].split(' ')[0];
+            const endPoint = stops[stops.length - 1].split(' ')[0];
+
+            return (
+                <div className="px-4 mt-4 relative z-10">
+                    <button
+                        onClick={() => setDirection(isForward ? 'backward' : 'forward')}
+                        className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all shadow-sm active:scale-95 duration-300 ${
+                             isForward 
+                             ? 'bg-white border-slate-200 dark:bg-slate-800 dark:border-slate-700' 
+                             : 'bg-slate-50 border-slate-300 dark:bg-slate-900 dark:border-slate-800'
+                        }`}
+                    >
+                        <div className="flex flex-col items-start">
+                            <span className="text-[10px] tracking-wider text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">Направление</span>
+                            <span className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2 transition-colors duration-300">
+                                {isForward ? "ТУДА" : "ОБРАТНО"}
+                            </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 font-medium bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg max-w-[50%] overflow-hidden whitespace-nowrap transition-colors duration-300">
+                           <span className="truncate">{isForward ? startPoint : endPoint}</span>
+                           <ArrowIcon />
+                           <span className="truncate">{isForward ? endPoint : startPoint}</span>
+                        </div>
+                    </button>
+                </div>
+            );
+        };
+
+        const NextBus = ({ schedule, currentMins, stops, nearestStop }) => {
+            let nextRow = null;
+            let timeUntil = 0;
+            let targetStopIndex = 0;
+            let targetStopName = "";
+
+            if (nearestStop) {
+                const stopIdx = stops.indexOf(nearestStop);
+                if (stopIdx !== -1) {
+                    targetStopIndex = stopIdx;
+                    targetStopName = nearestStop;
+                }
+            }
+            
+            nextRow = schedule.find(row => {
+                if (nearestStop && targetStopIndex !== -1) {
+                    const timeAtStop = row[targetStopIndex];
+                    if (!timeAtStop || timeAtStop === "-") return false;
+                    const mins = getMinutes(timeAtStop);
+                    if (mins > currentMins) {
+                        timeUntil = mins - currentMins;
+                        return true;
+                    }
+                    return false;
+                } 
+                else {
+                    const firstValidTime = row.find(t => t !== "-");
+                    if (!firstValidTime) return false;
+                    const mins = getMinutes(firstValidTime);
+                    if (mins > currentMins) {
+                        timeUntil = mins - currentMins;
+                        return true;
+                    }
+                    return false;
+                }
+            });
+
+            if (!nextRow) return (
+                <div className="mx-4 mt-4 p-5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center text-slate-500 dark:text-slate-400 text-sm font-medium transition-colors duration-300">
+                    На сегодня рейсов больше нет 😴
+                </div>
+            );
+
+            let displayTime = "";
+            let displayStopLabel = "Следующий рейс";
+            
+            if (nearestStop && targetStopIndex !== -1) {
+                displayTime = nextRow[targetStopIndex];
+                displayStopLabel = `Автобус на ${targetStopName}`;
+            } else {
+                const firstIdx = nextRow.findIndex(t => t !== "-");
+                displayTime = nextRow[firstIdx];
+            }
+
+            return (
+                <div className="mx-4 mt-4 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-2xl p-5 text-white shadow-lg flex flex-col relative overflow-hidden transition-all duration-500">
+                    <div className="flex justify-between items-start relative z-10">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                {nearestStop && (
+                                    <span className="relative flex h-2 w-2">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                                    </span>
+                                )}
+                                <div className="text-emerald-100 text-xs font-bold uppercase tracking-wider">
+                                    {displayStopLabel}
+                                </div>
+                            </div>
+                            <div className="text-5xl font-extrabold tracking-tight leading-none mb-1">{displayTime}</div>
+                            <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-medium text-emerald-50 mt-2">
+                                <HourglassIcon className="w-3 h-3" />
+                                {formatTimeLeft(timeUntil)}
+                            </div>
+                        </div>
+                        <div className="p-2 bg-white/10 rounded-full backdrop-blur-md">
+                            <ClockIcon className="w-8 h-8 text-white" />
+                        </div>
+                    </div>
+                    
+                    <div className="absolute -right-6 -bottom-8 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
+                    <div className="absolute -left-6 -top-8 w-24 h-24 bg-emerald-300 opacity-20 rounded-full blur-2xl"></div>
+                </div>
+            );
+        };
+
+        const ScheduleTable = ({ stops, schedule, currentMins, nearestStop }) => {
+            const highlightColIndex = nearestStop ? stops.indexOf(nearestStop) : -1;
+
+            // --- ЛОГИКА АКТИВНОГО АВТОБУСА ---
+            let activeBus = null; // { rowIndex, stopIndex, progress }
+
+            // Находим строку, в которой сейчас едет автобус
+            for (let r = 0; r < schedule.length; r++) {
+                const row = schedule[r];
+                // Найдем первое и последнее валидное время в маршруте
+                let startMins = -1;
+                let endMins = -1;
+                
+                // Ищем старт
+                for (let i = 0; i < row.length; i++) {
+                    const m = getMinutes(row[i]);
+                    if (m !== -1) { startMins = m; break; }
+                }
+                // Ищем конец
+                for (let i = row.length - 1; i >= 0; i--) {
+                    const m = getMinutes(row[i]);
+                    if (m !== -1) { endMins = m; break; }
+                }
+
+                if (startMins !== -1 && endMins !== -1) {
+                    // Если автобус уже выехал и еще не приехал (или только приехал)
+                    if (currentMins >= startMins && currentMins <= endMins) {
+                        // Теперь найдем конкретный сегмент
+                        
+                        let currentSegmentStartIdx = -1;
+                        let nextValidStopIdx = -1;
+                        
+                        // Ищем последнюю пройденную остановку (или текущую)
+                        for (let i = 0; i < row.length; i++) {
+                            const m = getMinutes(row[i]);
+                            if (m !== -1 && m <= currentMins) {
+                                currentSegmentStartIdx = i;
+                            }
+                        }
+
+                        // Ищем следующую остановку
+                        if (currentSegmentStartIdx !== -1) {
+                            for (let j = currentSegmentStartIdx + 1; j < row.length; j++) {
+                                const m = getMinutes(row[j]);
+                                if (m !== -1) {
+                                    nextValidStopIdx = j;
+                                    break;
+                                }
+                            }
+                        }
+
+                        // Рассчитываем прогресс
+                        let progress = 0; // 0..1
+                        if (currentSegmentStartIdx !== -1 && nextValidStopIdx !== -1) {
+                            const timeStart = getMinutes(row[currentSegmentStartIdx]);
+                            const timeEnd = getMinutes(row[nextValidStopIdx]);
+                            const duration = timeEnd - timeStart;
+                            const elapsed = currentMins - timeStart;
+                            if (duration > 0) {
+                                progress = elapsed / duration;
+                            } else {
+                                progress = 0.95; 
+                            }
+                        } else if (currentSegmentStartIdx !== -1 && nextValidStopIdx === -1) {
+                             progress = 0; 
+                        }
+
+                        activeBus = {
+                            rowIndex: r,
+                            stopIndex: currentSegmentStartIdx,
+                            progress: progress
+                        };
+                        break; // Показываем только один
+                    }
+                }
+            }
+
+            return (
+                <div className="mt-8 pb-10 border-t border-slate-200 dark:border-slate-800 pt-6 transition-colors duration-500">
+                    <h3 className="px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-4 flex items-center gap-2">
+                         <InfoIcon /> Полное расписание
+                    </h3>
+                    
+                    <div className="overflow-x-auto scrollbar-hide pb-4">
+                        <table className="w-full text-sm text-left border-collapse min-w-[600px] md:min-w-full">
+                            <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-800 border-y border-slate-200 dark:border-slate-700 transition-colors duration-300">
+                                <tr>
+                                    {stops.map((stop, idx) => (
+                                        <th key={idx} className={`px-4 py-3 font-bold whitespace-nowrap min-w-[120px] first:pl-6 last:pr-6 ${
+                                            idx === highlightColIndex ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''
+                                        }`}>
+                                            <div className="flex items-center gap-1">
+                                                {stop}
+                                                {idx === highlightColIndex && <LocationIcon className="w-3 h-3" />}
+                                            </div>
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {schedule.map((row, rowIdx) => {
+                                    let isRowPast = false;
+                                    if (highlightColIndex !== -1) {
+                                        const time = row[highlightColIndex];
+                                        if (time && time !== "-" && isPast(time, currentMins)) isRowPast = true;
+                                        if (time === "-") isRowPast = true;
+                                    } else {
+                                         const firstValidTime = row.find(t => t !== "-");
+                                         isRowPast = firstValidTime && isPast(firstValidTime, currentMins);
+                                    }
+                                    
+                                    const isActiveRow = activeBus && activeBus.rowIndex === rowIdx;
+                                    if (isActiveRow) isRowPast = false;
+
+                                    return (
+                                        <tr 
+                                            key={rowIdx} 
+                                            className={`border-b border-slate-100 dark:border-slate-800 last:border-0 transition-colors duration-300 ${
+                                                isRowPast 
+                                                ? 'bg-slate-50/50 dark:bg-slate-900/50' 
+                                                : 'bg-white dark:bg-slate-900 hover:bg-yellow-50 dark:hover:bg-yellow-900/10'
+                                            } ${isActiveRow ? 'bg-yellow-50/50 dark:bg-yellow-900/30' : ''}`}
+                                        >
+                                            {row.map((time, cellIdx) => {
+                                                const isHighlighted = cellIdx === highlightColIndex;
+                                                const showBus = activeBus && activeBus.rowIndex === rowIdx && activeBus.stopIndex === cellIdx;
+                                                
+                                                return (
+                                                    <td key={cellIdx} className={`px-4 py-3 whitespace-nowrap first:pl-6 last:pr-6 relative ${
+                                                        isHighlighted ? 'bg-blue-50/30 dark:bg-blue-900/20' : ''
+                                                    }`}>
+                                                        {time === "-" ? (
+                                                            <span className="text-slate-200 dark:text-slate-700 font-light">—</span>
+                                                        ) : (
+                                                            <span className={`font-mono text-[15px] relative z-10 transition-colors duration-300 ${
+                                                                isRowPast ? 'text-slate-300 dark:text-slate-600' : 
+                                                                (isHighlighted ? 'text-blue-700 dark:text-blue-400 font-bold' : 'text-slate-800 dark:text-slate-200 font-bold')
+                                                            }`}>
+                                                                {time}
+                                                            </span>
+                                                        )}
+                                                        
+                                                        {showBus && (
+                                                            <div 
+                                                                className="absolute bottom-1 left-0 z-20 transition-all duration-1000 ease-linear"
+                                                                style={{
+                                                                    left: `calc(30px + ${activeBus.progress * 60}%)`,
+                                                                    opacity: activeBus.progress > 0.95 ? 0.5 : 1
+                                                                }}
+                                                            >
+                                                                <BusIcon className="w-6 h-6 text-yellow-500 animate-bus drop-shadow-md" />
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="text-center text-[10px] text-slate-400 dark:text-slate-600 mt-2 px-4 flex justify-center items-center gap-2">
+                         <ArrowIcon className="w-3 h-3 rotate-90" />
+                         <span>Листайте таблицу влево-вправо</span>
+                         <ArrowIcon className="w-3 h-3 -rotate-90" />
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [activeRouteId, setActiveRouteId] = useState(1);
+            const [direction, setDirection] = useState('forward');
+            const [currentMins, setCurrentMins] = useState(getCurrentMinutes());
+            const [isDark, setIsDark] = useState(false);
+            
+            // Geolocation states
+            const [userLocation, setUserLocation] = useState(null);
+            const [nearestStop, setNearestStop] = useState(null);
+
+            // --- ТЕМА (День/Ночь) ---
+            useEffect(() => {
+                const updateTheme = () => {
+                    const hour = new Date().getHours();
+                    // Тёмная тема с 18:00 до 06:00
+                    const isDarkTime = hour >= 18 || hour < 6;
+                    setIsDark(isDarkTime);
+                    
+                    if (isDarkTime) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                };
+
+                updateTheme(); // Запустить сразу
+                const timer = setInterval(updateTheme, 60000); // Проверять каждую минуту
+                return () => clearInterval(timer);
+            }, []);
+
+            // Обновляем время часто для плавной анимации автобуса
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setCurrentMins(getCurrentMinutes());
+                }, 5000); 
+                return () => clearInterval(interval);
+            }, []);
+
+            // Запрашиваем геолокацию при старте
+            useEffect(() => {
+                if ("geolocation" in navigator) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            setUserLocation({
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude
+                            });
+                        },
+                        (error) => {
+                            console.log("Geo error or denied", error);
+                        }
+                    );
+                }
+            }, []);
+
+            // Вычисляем ближайшую остановку
+            useEffect(() => {
+                if (!userLocation) return;
+                
+                const activeData = ROUTES[activeRouteId];
+                const currentStops = activeData.stops[direction];
+                
+                let minDist = Infinity;
+                let closest = null;
+
+                currentStops.forEach(stopName => {
+                    const coordKey = Object.keys(STOP_COORDINATES).find(key => stopName.includes(key));
+                    
+                    if (coordKey) {
+                        const coords = STOP_COORDINATES[coordKey];
+                        const dist = calculateDistance(userLocation.lat, userLocation.lng, coords.lat, coords.lng);
+                        if (dist < minDist) {
+                            minDist = dist;
+                            closest = stopName;
+                        }
+                    }
+                });
+
+                if (minDist < 15) {
+                    setNearestStop(closest);
+                } else {
+                    setNearestStop(null);
+                }
+
+            }, [userLocation, activeRouteId, direction]);
+
+            useEffect(() => {
+                setDirection('forward');
+            }, [activeRouteId]);
+
+            const activeData = ROUTES[activeRouteId];
+            const currentStops = activeData.stops[direction];
+            const currentSchedule = activeData.schedule[direction];
+
+            return (
+                <div className="min-h-screen bg-white dark:bg-slate-900 max-w-lg mx-auto shadow-2xl md:my-10 overflow-hidden relative md:rounded-[30px] border-slate-200 dark:border-slate-800 md:border transition-colors duration-500">
+                    <Header activeRoute={activeRouteId} setActiveRoute={setActiveRouteId} isDark={isDark} />
+                    
+                    <main>
+                        <DirectionToggle 
+                            routeData={activeData} 
+                            direction={direction} 
+                            setDirection={setDirection} 
+                        />
+
+                        {nearestStop && (
+                             <div className="mx-4 mt-2 mb-1 flex items-center justify-center gap-2 text-xs text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800 animate-fadeIn transition-colors duration-300">
+                                <LocationIcon className="w-3 h-3" />
+                                <span>Вы рядом с: <b>{nearestStop}</b></span>
+                            </div>
+                        )}
+
+                        <NextBus 
+                            schedule={currentSchedule} 
+                            currentMins={currentMins} 
+                            stops={currentStops}
+                            nearestStop={nearestStop}
+                        />
+
+                        <ScheduleTable 
+                            stops={currentStops} 
+                            schedule={currentSchedule} 
+                            currentMins={currentMins}
+                            nearestStop={nearestStop}
+                        />
+                    </main>
+                    
+                    <footer className="text-center py-6 text-xs text-slate-300 dark:text-slate-600 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 transition-colors duration-500">
+                        <p className="font-medium">Приятной поездки! 🚌</p>
+                        <p className="mt-1 opacity-60 text-[10px]">by EvZem</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
