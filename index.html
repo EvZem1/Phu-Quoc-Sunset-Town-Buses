@@ -263,6 +263,11 @@
             return R * c;
         };
 
+        const formatDistance = (km) => {
+            if (km < 1) return `${Math.round(km * 1000)} м`;
+            return `${km.toFixed(1)} км`;
+        };
+
         const getMinutes = (timeStr) => {
             if (!timeStr || timeStr === "-") return -1;
             try {
@@ -369,72 +374,61 @@
             );
         };
 
-        const NextBus = ({ schedule, currentMins, stops, nearestStop }) => {
-            let nextRow = null;
+        const NextBus = ({ schedule, currentMins, userStops }) => {
+            let targetStop = null;
+            let displayTime = null;
             let timeUntil = 0;
-            let targetStopIndex = 0;
-            let targetStopName = "";
 
-            if (nearestStop) {
-                const stopIdx = stops.indexOf(nearestStop);
-                if (stopIdx !== -1) {
-                    targetStopIndex = stopIdx;
-                    targetStopName = nearestStop;
+            if (userStops && userStops.length > 0) {
+                // Ищем ближайшую остановку, где есть рейсы
+                for (const stop of userStops) {
+                     const validRow = schedule.find(row => {
+                         const timeStr = row[stop.index];
+                         if (!timeStr || timeStr === "-") return false;
+                         const mins = getMinutes(timeStr);
+                         return mins > currentMins;
+                     });
+
+                     if (validRow) {
+                         targetStop = stop;
+                         displayTime = validRow[stop.index];
+                         timeUntil = getMinutes(displayTime) - currentMins;
+                         break;
+                     }
                 }
-            }
-            
-            nextRow = schedule.find(row => {
-                if (nearestStop && targetStopIndex !== -1) {
-                    const timeAtStop = row[targetStopIndex];
-                    if (!timeAtStop || timeAtStop === "-") return false;
-                    const mins = getMinutes(timeAtStop);
-                    if (mins > currentMins) {
-                        timeUntil = mins - currentMins;
-                        return true;
-                    }
-                    return false;
-                } 
-                else {
+            } else {
+                // Если геопозиции нет, берем следующий рейс от начала маршрута
+                const nextRow = schedule.find(row => {
                     const firstValidTime = row.find(t => t !== "-");
                     if (!firstValidTime) return false;
                     const mins = getMinutes(firstValidTime);
-                    if (mins > currentMins) {
-                        timeUntil = mins - currentMins;
-                        return true;
-                    }
-                    return false;
+                    return mins > currentMins;
+                });
+                if (nextRow) {
+                    const firstIdx = nextRow.findIndex(t => t !== "-");
+                    displayTime = nextRow[firstIdx];
+                    timeUntil = getMinutes(displayTime) - currentMins;
                 }
-            });
+            }
 
-            if (!nextRow) return (
+            if (!displayTime) return (
                 <div className="mx-4 mt-4 p-5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center text-slate-500 dark:text-slate-400 text-sm font-medium transition-colors duration-300">
                     На сегодня рейсов больше нет 😴
                 </div>
             );
 
-            let displayTime = "";
-            
-            if (nearestStop && targetStopIndex !== -1) {
-                displayTime = nextRow[targetStopIndex];
-            } else {
-                const firstIdx = nextRow.findIndex(t => t !== "-");
-                displayTime = nextRow[firstIdx];
-            }
-
             return (
                 <div className="mx-4 mt-4 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-2xl p-5 text-white shadow-lg flex flex-col relative overflow-hidden transition-all duration-500">
                     <div className="flex justify-between items-start relative z-10">
                         <div>
-                            {/* NEW: Improved Header Logic */}
-                            {nearestStop ? (
+                            {targetStop ? (
                                 <div className="mb-3">
                                     <div className="flex items-center gap-1.5 text-white font-bold text-sm mb-1">
-                                        {/* Animated Location Pin */}
                                         <div className="relative flex h-3 w-3 mr-1">
                                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
                                           <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-400"></span>
                                         </div>
-                                        <span className="drop-shadow-sm">{nearestStop}</span>
+                                        <span className="drop-shadow-sm">Остановка: {targetStop.name} ({formatDistance(targetStop.dist)})</span>
                                     </div>
                                     <div className="text-emerald-100 text-xs opacity-90 font-medium">
                                         Следующий автобус приедет в
@@ -463,39 +457,32 @@
             );
         };
 
-        const ScheduleTable = ({ stops, schedule, currentMins, nearestStop, busImage }) => {
-            const highlightColIndex = nearestStop ? stops.indexOf(nearestStop) : -1;
+        const ScheduleTable = ({ stops, schedule, currentMins, userStops, busImage }) => {
+            // Подсветка ближайшей физически остановки (первая в списке userStops)
+            const closestStopIndex = userStops && userStops.length > 0 ? userStops[0].index : -1;
 
             // --- ЛОГИКА АКТИВНОГО АВТОБУСА ---
-            let activeBus = null; // { rowIndex, stopIndex, progress }
+            let activeBus = null;
 
-            // Находим строку, в которой сейчас едет автобус
             for (let r = 0; r < schedule.length; r++) {
                 const row = schedule[r];
-                // Найдем первое и последнее валидное время в маршруте
                 let startMins = -1;
                 let endMins = -1;
                 
-                // Ищем старт
                 for (let i = 0; i < row.length; i++) {
                     const m = getMinutes(row[i]);
                     if (m !== -1) { startMins = m; break; }
                 }
-                // Ищем конец
                 for (let i = row.length - 1; i >= 0; i--) {
                     const m = getMinutes(row[i]);
                     if (m !== -1) { endMins = m; break; }
                 }
 
                 if (startMins !== -1 && endMins !== -1) {
-                    // Если автобус уже выехал и еще не приехал (или только приехал)
                     if (currentMins >= startMins && currentMins <= endMins) {
-                        // Теперь найдем конкретный сегмент
-                        
                         let currentSegmentStartIdx = -1;
                         let nextValidStopIdx = -1;
                         
-                        // Ищем последнюю пройденную остановку (или текущую)
                         for (let i = 0; i < row.length; i++) {
                             const m = getMinutes(row[i]);
                             if (m !== -1 && m <= currentMins) {
@@ -503,7 +490,6 @@
                             }
                         }
 
-                        // Ищем следующую остановку
                         if (currentSegmentStartIdx !== -1) {
                             for (let j = currentSegmentStartIdx + 1; j < row.length; j++) {
                                 const m = getMinutes(row[j]);
@@ -514,8 +500,7 @@
                             }
                         }
 
-                        // Рассчитываем прогресс
-                        let progress = 0; // 0..1
+                        let progress = 0;
                         if (currentSegmentStartIdx !== -1 && nextValidStopIdx !== -1) {
                             const timeStart = getMinutes(row[currentSegmentStartIdx]);
                             const timeEnd = getMinutes(row[nextValidStopIdx]);
@@ -535,7 +520,7 @@
                             stopIndex: currentSegmentStartIdx,
                             progress: progress
                         };
-                        break; // Показываем только один
+                        break;
                     }
                 }
             }
@@ -552,11 +537,11 @@
                                 <tr>
                                     {stops.map((stop, idx) => (
                                         <th key={idx} className={`px-4 py-3 font-bold whitespace-nowrap min-w-[120px] first:pl-6 last:pr-6 ${
-                                            idx === highlightColIndex ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''
+                                            idx === closestStopIndex ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''
                                         }`}>
                                             <div className="flex items-center gap-1">
                                                 {stop}
-                                                {idx === highlightColIndex && <LocationIcon className="w-3 h-3" />}
+                                                {idx === closestStopIndex && <LocationIcon className="w-3 h-3" />}
                                             </div>
                                         </th>
                                     ))}
@@ -565,10 +550,11 @@
                             <tbody>
                                 {schedule.map((row, rowIdx) => {
                                     let isRowPast = false;
-                                    if (highlightColIndex !== -1) {
-                                        const time = row[highlightColIndex];
+                                    // Логика "прошедшего" рейса: если мы знаем ближайшую остановку, судим по ней
+                                    if (closestStopIndex !== -1) {
+                                        const time = row[closestStopIndex];
                                         if (time && time !== "-" && isPast(time, currentMins)) isRowPast = true;
-                                        if (time === "-") isRowPast = true;
+                                        if (time === "-") isRowPast = true; // Если не останавливается, то "прошел" для нас
                                     } else {
                                          const firstValidTime = row.find(t => t !== "-");
                                          isRowPast = firstValidTime && isPast(firstValidTime, currentMins);
@@ -587,7 +573,7 @@
                                             } ${isActiveRow ? 'bg-yellow-50/50 dark:bg-yellow-900/30' : ''}`}
                                         >
                                             {row.map((time, cellIdx) => {
-                                                const isHighlighted = cellIdx === highlightColIndex;
+                                                const isHighlighted = cellIdx === closestStopIndex;
                                                 const showBus = activeBus && activeBus.rowIndex === rowIdx && activeBus.stopIndex === cellIdx;
                                                 
                                                 return (
@@ -616,7 +602,7 @@
                                                                 <img 
                                                                     src={busImage} 
                                                                     alt="Bus" 
-                                                                    className="w-8 h-auto drop-shadow-md" // Removed transform -scale-x-100
+                                                                    className="w-8 h-auto drop-shadow-md" 
                                                                     style={{ display: 'block' }}
                                                                 />
                                                             </div>
@@ -647,7 +633,7 @@
             
             // Geolocation states
             const [userLocation, setUserLocation] = useState(null);
-            const [nearestStop, setNearestStop] = useState(null);
+            const [userStops, setUserStops] = useState(null); // Array of { name, dist, index }
 
             // --- ТЕМА (День/Ночь) ---
             useEffect(() => {
@@ -694,33 +680,33 @@
                 }
             }, []);
 
-            // Вычисляем ближайшую остановку
+            // Вычисляем ближайшие остановки
             useEffect(() => {
                 if (!userLocation) return;
                 
                 const activeData = ROUTES[activeRouteId];
                 const currentStops = activeData.stops[direction];
                 
-                let minDist = Infinity;
-                let closest = null;
-
-                currentStops.forEach(stopName => {
+                // Создаем список всех остановок с дистанцией
+                const stopsWithDist = currentStops.map((stopName, index) => {
+                    // Ищем ключ координат по частичному совпадению
                     const coordKey = Object.keys(STOP_COORDINATES).find(key => stopName.includes(key));
-                    
                     if (coordKey) {
                         const coords = STOP_COORDINATES[coordKey];
                         const dist = calculateDistance(userLocation.lat, userLocation.lng, coords.lat, coords.lng);
-                        if (dist < minDist) {
-                            minDist = dist;
-                            closest = stopName;
-                        }
+                        return { name: stopName, dist: dist, index: index };
                     }
-                });
+                    return null;
+                }).filter(item => item !== null);
 
-                if (minDist < 15) {
-                    setNearestStop(closest);
+                // Сортируем по возрастанию дистанции
+                stopsWithDist.sort((a, b) => a.dist - b.dist);
+
+                // Если есть остановки ближе 15 км, сохраняем их
+                if (stopsWithDist.length > 0 && stopsWithDist[0].dist < 15) {
+                    setUserStops(stopsWithDist);
                 } else {
-                    setNearestStop(null);
+                    setUserStops(null);
                 }
 
             }, [userLocation, activeRouteId, direction]);
@@ -744,10 +730,10 @@
                             setDirection={setDirection} 
                         />
 
-                        {nearestStop && (
+                        {userStops && userStops.length > 0 && (
                              <div className="mx-4 mt-2 mb-1 flex items-center justify-center gap-2 text-xs text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800 animate-fadeIn transition-colors duration-300">
                                 <LocationIcon className="w-3 h-3" />
-                                <span>Вы рядом с: <b>{nearestStop}</b></span>
+                                <span>Вы рядом с: <b>{userStops[0].name}</b></span>
                             </div>
                         )}
 
@@ -755,14 +741,16 @@
                             schedule={currentSchedule} 
                             currentMins={currentMins} 
                             stops={currentStops}
-                            nearestStop={nearestStop}
+                            userStops={userStops}
+                            nearestStop={userStops && userStops.length > 0 ? userStops[0].name : null}
                         />
 
                         <ScheduleTable 
                             stops={currentStops} 
                             schedule={currentSchedule} 
                             currentMins={currentMins}
-                            nearestStop={nearestStop}
+                            userStops={userStops}
+                            nearestStop={userStops && userStops.length > 0 ? userStops[0].name : null}
                             busImage={activeData.busImage}
                         />
                     </main>
