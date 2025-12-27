@@ -10,11 +10,13 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <!-- Babel для компиляции JSX в браузере -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- SunCalc для расчета рассветов и закатов -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/suncalc/1.9.0/suncalc.min.js"></script>
     <!-- Tailwind CSS с настройкой Dark Mode -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            darkMode: 'class', // Включаем режим переключения по классу
+            darkMode: 'class', 
             theme: {
                 extend: {
                     colors: {
@@ -22,6 +24,21 @@
                             850: '#1e293b',
                             900: '#0f172a',
                             950: '#020617',
+                        }
+                    },
+                    animation: {
+                        'float': 'float 30s infinite linear',
+                        'twinkle': 'twinkle 4s infinite ease-in-out',
+                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%': { transform: 'translateX(-10%)' },
+                            '100%': { transform: 'translateX(110%)' },
+                        },
+                        twinkle: {
+                            '0%, 100%': { opacity: 0.3, transform: 'scale(0.8)' },
+                            '50%': { opacity: 1, transform: 'scale(1.1)' },
                         }
                     }
                 }
@@ -33,11 +50,9 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
         
-        /* Скрытие полосы прокрутки */
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Анимация пульсации для геометки */
         @keyframes ping-slow {
             75%, 100% { transform: scale(2); opacity: 0; }
         }
@@ -45,7 +60,6 @@
             animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
         }
 
-        /* Анимация колес автобуса (легкое покачивание) */
         @keyframes bounce-bus {
             0%, 100% { transform: translateY(0); }
             50% { transform: translateY(-2px); }
@@ -53,15 +67,27 @@
         .animate-bus {
             animation: bounce-bus 0.6s infinite ease-in-out;
         }
+
+        .star {
+            position: absolute;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle var(--duration) infinite ease-in-out;
+            animation-delay: var(--delay);
+        }
+        
+        .cloud-shape {
+            fill: rgba(255, 255, 255, 0.3);
+        }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 transition-colors duration-500">
+<body class="transition-colors duration-1000 ease-in-out">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- КООРДИНАТЫ ОСТАНОВОК (Примерные координаты на Фукуоке) ---
+        // --- КООРДИНАТЫ ОСТАНОВОК ---
         const STOP_COORDINATES = {
             "Khem Beach Station": { lat: 10.0435, lng: 104.0260 },
             "New World Resort": { lat: 10.0410, lng: 104.0240 },
@@ -75,99 +101,25 @@
             "Seashells Hotel": { lat: 10.2160, lng: 103.9560 }
         };
 
-        // --- ВСТРОЕННЫЕ ИКОНКИ (SVG) ---
-        
-        // Стандартная иконка для заголовка
-        const HeaderBusIcon = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-                <path d="M18 11.0056C17.9972 10.8711 17.9861 10.7389 17.9611 10.6083C17.6583 9.06667 16.3278 7.91389 14.7139 7.82222L14.6556 7.82222H9.36667L9.27778 7.825C7.68056 7.925 6.36389 9.07222 6.05 10.5972C6.01667 10.7417 5.99722 10.8889 5.99444 11.0361C5.99444 11.0389 5.99444 11.0417 5.99444 11.0417V15.7639C5.99444 16.5917 6.66667 17.2639 7.49444 17.2639H7.66944C7.81944 17.2639 7.96111 17.225 8.08889 17.1528C8.24167 17.5194 8.60556 17.7778 9.02778 17.7778C9.53611 17.7778 9.96111 17.4167 10.0639 16.9361H13.9167C14.0222 17.4194 14.4444 17.7778 14.9528 17.7778C15.375 17.7778 15.7361 17.5194 15.8917 17.1556C16.0222 17.225 16.1667 17.2639 16.3194 17.2639H16.4944C17.3222 17.2639 17.9944 16.5917 17.9944 15.7639V11.0389C18 11.025 18 11.0139 18 11.0056ZM9.02778 16.7361C8.74167 16.7361 8.51111 16.5056 8.51111 16.2194C8.51111 15.9333 8.74167 15.7028 9.02778 15.7028C9.31389 15.7028 9.54444 15.9333 9.54444 16.2194C9.54444 16.5056 9.31389 16.7361 9.02778 16.7361ZM14.9528 16.7361C14.6667 16.7361 14.4361 16.5056 14.4361 16.2194C14.4361 15.9333 14.6667 15.7028 14.9528 15.7028C15.2389 15.7028 15.4694 15.9333 15.4694 16.2194C15.4694 16.5056 15.2389 16.7361 14.9528 16.7361ZM16.4861 13.9028H7.50556V11.2361C7.54444 10.3389 8.35833 9.53333 9.36667 9.53333H14.6444C15.65 9.53333 16.4639 10.3306 16.4861 11.2333V13.9028Z" />
-            </svg>
-        );
-
-        const ArrowIcon = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <path d="M21 12H3" /><path d="M17 8l4 4-4 4" />
-            </svg>
-        );
-
-        const ClockIcon = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-            </svg>
-        );
-
-        const InfoIcon = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
-            </svg>
-        );
-
-        const BeachIcon = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M13 8c0-2.76-2.46-5-5.5-5S2 5.24 2 8h2c0-1.66 1.57-3 3.5-3S11 6.34 11 8h2z" />
-                <path d="M13 7.14A5.82 5.82 0 0 1 16.5 6c3.04 0 5.5 2.24 5.5 5h-2c0-1.66-1.57-3-3.5-3c-1.25 0-2.34.56-3.03 1.44" />
-                <path d="M12 22v-9" />
-                <path d="M12 13a4 4 0 0 0 4 3" />
-                <path d="M12 13a4 4 0 0 1-4 3" />
-                <path d="M4 22h16" />
-            </svg>
-        );
-
-        const CityIcon = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M2 22h20" />
-                <path d="M17 22v-6" />
-                <path d="M14 22v-9a2 2 0 0 1 2-2h1" />
-                <path d="M10 22V5a2 2 0 0 1 2-2h1" />
-                <path d="M7 22V9a2 2 0 0 1 2-2h1" />
-                <path d="M4 22v-5a2 2 0 0 1 2-2h1" />
-            </svg>
-        );
-        
-        const HourglassIcon = () => (
-             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 22h14" />
-              <path d="M5 2h14" />
-              <path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" />
-              <path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" />
-            </svg>
-        );
-
-        const LocationIcon = ({ className }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-              <circle cx="12" cy="10" r="3" />
-            </svg>
-        );
-
-        const SunIcon = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400">
-                <circle cx="12" cy="12" r="5"></circle>
-                <line x1="12" y1="1" x2="12" y2="3"></line>
-                <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-            </svg>
-        );
-
-        const MoonIcon = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-200">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-            </svg>
-        );
+        // --- ИКОНКИ ---
+        const HeaderBusIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}><path d="M18 11.0056C17.9972 10.8711 17.9861 10.7389 17.9611 10.6083C17.6583 9.06667 16.3278 7.91389 14.7139 7.82222L14.6556 7.82222H9.36667L9.27778 7.825C7.68056 7.925 6.36389 9.07222 6.05 10.5972C6.01667 10.7417 5.99722 10.8889 5.99444 11.0361C5.99444 11.0389 5.99444 11.0417 5.99444 11.0417V15.7639C5.99444 16.5917 6.66667 17.2639 7.49444 17.2639H7.66944C7.81944 17.2639 7.96111 17.225 8.08889 17.1528C8.24167 17.5194 8.60556 17.7778 9.02778 17.7778C9.53611 17.7778 9.96111 17.4167 10.0639 16.9361H13.9167C14.0222 17.4194 14.4444 17.7778 14.9528 17.7778C15.375 17.7778 15.7361 17.5194 15.8917 17.1556C16.0222 17.225 16.1667 17.2639 16.3194 17.2639H16.4944C17.3222 17.2639 17.9944 16.5917 17.9944 15.7639V11.0389C18 11.025 18 11.0139 18 11.0056ZM9.02778 16.7361C8.74167 16.7361 8.51111 16.5056 8.51111 16.2194C8.51111 15.9333 8.74167 15.7028 9.02778 15.7028C9.31389 15.7028 9.54444 15.9333 9.54444 16.2194C9.54444 16.5056 9.31389 16.7361 9.02778 16.7361ZM14.9528 16.7361C14.6667 16.7361 14.4361 16.5056 14.4361 16.2194C14.4361 15.9333 14.6667 15.7028 14.9528 15.7028C15.2389 15.7028 15.4694 15.9333 15.4694 16.2194C15.4694 16.5056 15.2389 16.7361 14.9528 16.7361ZM16.4861 13.9028H7.50556V11.2361C7.54444 10.3389 8.35833 9.53333 9.36667 9.53333H14.6444C15.65 9.53333 16.4639 10.3306 16.4861 11.2333V13.9028Z" /></svg>);
+        const ArrowIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 12H3" /><path d="M17 8l4 4-4 4" /></svg>);
+        const ClockIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>);
+        const InfoIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>);
+        const BeachIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 8c0-2.76-2.46-5-5.5-5S2 5.24 2 8h2c0-1.66 1.57-3 3.5-3S11 6.34 11 8h2z" /><path d="M13 7.14A5.82 5.82 0 0 1 16.5 6c3.04 0 5.5 2.24 5.5 5h-2c0-1.66-1.57-3-3.5-3c-1.25 0-2.34.56-3.03 1.44" /><path d="M12 22v-9" /><path d="M12 13a4 4 0 0 0 4 3" /><path d="M12 13a4 4 0 0 1-4 3" /><path d="M4 22h16" /></svg>);
+        const CityIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 22h20" /><path d="M17 22v-6" /><path d="M14 22v-9a2 2 0 0 1 2-2h1" /><path d="M10 22V5a2 2 0 0 1 2-2h1" /><path d="M7 22V9a2 2 0 0 1 2-2h1" /><path d="M4 22v-5a2 2 0 0 1 2-2h1" /></svg>);
+        const HourglassIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 22h14" /><path d="M5 2h14" /><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" /><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" /></svg>);
+        const LocationIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>);
+        const SunIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>);
+        const MoonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-200"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>);
 
         // --- ДАННЫЕ РАСПИСАНИЯ ---
-
         const ROUTES = {
             1: {
                 id: 1,
                 name: "На Пляж (Khem Beach)",
                 shortName: "Пляж (Khem)",
-                icon: <BeachIcon />,
+                icon: <span className="text-lg">⛱️</span>,
                 desc: "Маршрут к пляжу Khem Beach и курортам",
                 color: "bg-blue-600",
                 busImage: "https://www.dropbox.com/scl/fi/3ryvtmwt28oe5b3d9h3ab/Khem-Beach.png?rlkey=c867pgs25uslhdm4oxqkvgbet&st=1j10ebxu&raw=1",
@@ -177,38 +129,10 @@
                 },
                 schedule: {
                     forward: [
-                        ["09:00", "-", "09:15", "09:30"],
-                        ["10:00", "-", "10:15", "10:30"],
-                        ["11:00", "-", "11:15", "11:30"],
-                        ["12:00", "-", "12:15", "12:30"],
-                        ["14:00", "-", "14:15", "14:30"],
-                        ["15:00", "-", "15:15", "15:30"],
-                        ["17:00", "-", "17:15", "17:30"],
-                        ["18:00", "18:10", "18:20", "18:30"],
-                        ["18:30", "18:40", "18:50", "19:00"],
-                        ["19:00", "19:10", "19:20", "19:30"],
-                        ["19:30", "19:40", "19:50", "20:00"],
-                        ["20:00", "20:10", "20:20", "20:30"],
-                        ["20:30", "20:40", "20:50", "21:00"],
-                        ["21:00", "21:10", "21:20", "21:30"],
-                        ["21:30", "21:40", "21:50", "22:00"]
+                        ["09:00", "-", "09:15", "09:30"], ["10:00", "-", "10:15", "10:30"], ["11:00", "-", "11:15", "11:30"], ["12:00", "-", "12:15", "12:30"], ["14:00", "-", "14:15", "14:30"], ["15:00", "-", "15:15", "15:30"], ["17:00", "-", "17:15", "17:30"], ["18:00", "18:10", "18:20", "18:30"], ["18:30", "18:40", "18:50", "19:00"], ["19:00", "19:10", "19:20", "19:30"], ["19:30", "19:40", "19:50", "20:00"], ["20:00", "20:10", "20:20", "20:30"], ["20:30", "20:40", "20:50", "21:00"], ["21:00", "21:10", "21:20", "21:30"], ["21:30", "21:40", "21:50", "22:00"]
                     ],
                     backward: [
-                        ["08:30", "08:40", "-", "09:00"],
-                        ["09:30", "09:40", "-", "10:00"],
-                        ["10:30", "10:40", "-", "11:00"],
-                        ["11:30", "11:40", "-", "12:00"],
-                        ["13:30", "13:40", "-", "14:00"],
-                        ["14:30", "14:40", "-", "15:00"],
-                        ["16:30", "16:40", "-", "17:00"],
-                        ["17:30", "17:40", "17:50", "18:00"],
-                        ["18:00", "18:10", "18:20", "18:30"],
-                        ["18:30", "18:40", "18:50", "19:00"],
-                        ["19:00", "19:10", "19:20", "19:30"],
-                        ["19:30", "19:40", "19:50", "20:00"],
-                        ["20:00", "20:10", "20:20", "20:30"],
-                        ["20:30", "20:40", "20:50", "21:00"],
-                        ["21:00", "21:10", "21:20", "21:30"]
+                        ["08:30", "08:40", "-", "09:00"], ["09:30", "09:40", "-", "10:00"], ["10:30", "10:40", "-", "11:00"], ["11:30", "11:40", "-", "12:00"], ["13:30", "13:40", "-", "14:00"], ["14:30", "14:40", "-", "15:00"], ["16:30", "16:40", "-", "17:00"], ["17:30", "17:40", "17:50", "18:00"], ["18:00", "18:10", "18:20", "18:30"], ["18:30", "18:40", "18:50", "19:00"], ["19:00", "19:10", "19:20", "19:30"], ["19:30", "19:40", "19:50", "20:00"], ["20:00", "20:10", "20:20", "20:30"], ["20:30", "20:40", "20:50", "21:00"], ["21:00", "21:10", "21:20", "21:30"]
                     ]
                 }
             },
@@ -216,7 +140,7 @@
                 id: 2,
                 name: "В Город (Duong Dong)",
                 shortName: "Город (D.Dong)",
-                icon: <CityIcon />,
+                icon: <span className="text-lg">🛖</span>,
                 desc: "Маршрут в центр города (Duong Dong)",
                 color: "bg-teal-600",
                 busImage: "https://www.dropbox.com/scl/fi/7mnpx6rei8ijv616ntytg/Duong-Dong.png?rlkey=mxosd9i13twbq275israfxnfk&st=i91vp524&raw=1",
@@ -226,135 +150,224 @@
                 },
                 schedule: {
                     forward: [
-                        ["07:30", "-", "-", "-", "-", "-", "08:00"],
-                        ["08:00", "-", "-", "-", "-", "-", "08:30"],
-                        ["09:30", "09:40", "-", "09:55", "10:05", "10:20", "10:30"],
-                        ["10:00", "10:10", "-", "10:25", "10:35", "10:50", "11:00"],
-                        ["14:00", "14:10", "-", "14:25", "14:35", "14:50", "15:00"],
-                        ["14:30", "14:40", "-", "14:55", "15:05", "15:20", "15:30"],
-                        ["18:00", "-", "18:10", "18:25", "18:35", "18:50", "19:00"],
-                        ["18:30", "-", "18:40", "18:55", "19:05", "19:20", "19:30"],
-                        ["-", "-", "21:45", "22:00", "22:10", "22:25", "22:35"]
+                        ["07:30", "-", "-", "-", "-", "-", "08:00"], ["08:00", "-", "-", "-", "-", "-", "08:30"], ["09:30", "09:40", "-", "09:55", "10:05", "10:20", "10:30"], ["10:00", "10:10", "-", "10:25", "10:35", "10:50", "11:00"], ["14:00", "14:10", "-", "14:25", "14:35", "14:50", "15:00"], ["14:30", "14:40", "-", "14:55", "15:05", "15:20", "15:30"], ["18:00", "-", "18:10", "18:25", "18:35", "18:50", "19:00"], ["18:30", "-", "18:40", "18:55", "19:05", "19:20", "19:30"], ["-", "-", "21:45", "22:00", "22:10", "22:25", "22:35"]
                     ],
                     backward: [
-                        ["08:15", "08:25", "08:40", "08:50", "-", "09:05", "09:15"],
-                        ["08:45", "08:55", "09:10", "09:20", "-", "09:35", "09:45"],
-                        ["10:45", "10:55", "11:10", "11:20", "-", "11:35", "11:45"],
-                        ["11:15", "11:25", "11:40", "11:50", "-", "12:05", "12:15"],
-                        ["15:15", "15:25", "15:40", "15:50", "-", "16:05", "16:15"],
-                        ["15:45", "15:55", "16:10", "16:20", "-", "16:35", "16:45"],
-                        ["19:15", "19:25", "19:40", "19:50", "20:05", "-", "20:15"],
-                        ["19:45", "19:55", "20:10", "20:20", "20:35", "-", "20:45"]
+                        ["08:15", "08:25", "08:40", "08:50", "-", "09:05", "09:15"], ["08:45", "08:55", "09:10", "09:20", "-", "09:35", "09:45"], ["10:45", "10:55", "11:10", "11:20", "-", "11:35", "11:45"], ["11:15", "11:25", "11:40", "11:50", "-", "12:05", "12:15"], ["15:15", "15:25", "15:40", "15:50", "-", "16:05", "16:15"], ["15:45", "15:55", "16:10", "16:20", "-", "16:35", "16:45"], ["19:15", "19:25", "19:40", "19:50", "20:05", "-", "20:15"], ["19:45", "19:55", "20:10", "20:20", "20:35", "-", "20:45"]
                     ]
                 }
             }
         };
 
-        // --- ГЕОЛОКАЦИЯ И УТИЛИТЫ ---
-
+        // --- УТИЛИТЫ ---
         const calculateDistance = (lat1, lon1, lat2, lon2) => {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = 
-                Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
+            const R = 6371; const dLat = (lat2 - lat1) * Math.PI / 180; const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        };
+        const formatDistance = (km) => km < 1 ? `${Math.round(km * 1000)} м` : `${km.toFixed(1)} км`;
+        const getMinutes = (timeStr) => { if (!timeStr || timeStr === "-") return -1; const [h, m] = timeStr.split(':').map(Number); return h * 60 + m; };
+        const getCurrentMinutes = () => { const now = new Date(); return now.getHours() * 60 + now.getMinutes(); };
+        const isPast = (timeStr, currentMins) => { const mins = getMinutes(timeStr); return mins !== -1 && mins < currentMins; };
+        const formatTimeLeft = (diffMins) => { if (diffMins < 60) return `через ${diffMins} мин`; const h = Math.floor(diffMins / 60); const m = diffMins % 60; return `через ${h} ч ${m} мин`; };
+
+        // --- КОМПОНЕНТ ДИНАМИЧЕСКОГО НЕБА ---
+        const SkyBackground = ({ skyState, moonPhase, userLocation }) => {
+            const [celestialPos, setCelestialPos] = useState({ x: -20, y: -20 });
+
+            // Расчет позиции светила (Солнца или Луны) в реальном времени
+            useEffect(() => {
+                const calculatePosition = () => {
+                    const now = new Date();
+                    let progress = 0; // 0 (start) -> 1 (end)
+
+                    // Если нет геолокации, используем фиксированное время
+                    let startTime, endTime;
+                    
+                    if (userLocation && typeof SunCalc !== 'undefined') {
+                        const times = SunCalc.getTimes(now, userLocation.lat, userLocation.lng);
+                        
+                        // ДЕНЬ: Солнце от восхода до заката
+                        if (skyState === 'day' || skyState === 'dawn' || skyState === 'dusk') {
+                            // Берем немного шире: от dawn до night, чтобы солнце плавно выходило и заходило
+                            startTime = times.dawn; 
+                            endTime = times.dusk; 
+                        } 
+                        // НОЧЬ: Луна от заката до восхода (упрощенно)
+                        else {
+                            startTime = times.night;
+                            // Если сейчас ночь до полуночи, конец - это рассвет завтра
+                            // Если после полуночи, начало - это закат вчера
+                            if (now.getHours() > 12) {
+                                const tomorrow = new Date(now);
+                                tomorrow.setDate(tomorrow.getDate() + 1);
+                                const tomorrowTimes = SunCalc.getTimes(tomorrow, userLocation.lat, userLocation.lng);
+                                endTime = tomorrowTimes.dawn;
+                            } else {
+                                const yesterday = new Date(now);
+                                yesterday.setDate(yesterday.getDate() - 1);
+                                const yesterdayTimes = SunCalc.getTimes(yesterday, userLocation.lat, userLocation.lng);
+                                startTime = yesterdayTimes.night;
+                                endTime = times.dawn;
+                            }
+                        }
+                    } else {
+                        // ФОЛЛБЭК БЕЗ ГЕО:
+                        const nowMins = now.getHours() * 60 + now.getMinutes();
+                        // День: 06:00 (360) -> 18:00 (1080)
+                        if (skyState !== 'night') {
+                            progress = (nowMins - 360) / (1080 - 360);
+                        } else {
+                            // Ночь: 18:00 -> 06:00
+                            if (nowMins >= 1080) { // 18:00 - 23:59
+                                progress = (nowMins - 1080) / (24*60 + 360 - 1080);
+                            } else { // 00:00 - 06:00
+                                progress = (nowMins + (24*60 - 1080)) / (24*60 + 360 - 1080);
+                            }
+                        }
+                    }
+
+                    if (startTime && endTime) {
+                        const totalDuration = endTime - startTime;
+                        const elapsed = now - startTime;
+                        progress = elapsed / totalDuration;
+                    }
+
+                    // Ограничиваем прогресс 0..1 для безопасности
+                    progress = Math.max(0, Math.min(1, progress));
+
+                    // Расчет координат (парабола для Y)
+                    // X: 0% -> 100%
+                    // Y: Низ -> Верх -> Низ. Используем sin(PI * progress)
+                    // top: 100% (низ) -> 10% (верх) -> 100% (низ)
+                    const x = progress * 100;
+                    const y = 100 - (Math.sin(progress * Math.PI) * 90); // 100% = дно, 10% = зенит
+
+                    setCelestialPos({ x, y });
+                };
+
+                calculatePosition();
+                const interval = setInterval(calculatePosition, 60000); // Обновляем раз в минуту
+                return () => clearInterval(interval);
+            }, [skyState, userLocation]);
+
+            const stars = useMemo(() => {
+                if (skyState !== 'night') return [];
+                return Array.from({ length: 35 }).map((_, i) => ({
+                    top: Math.random() * 70 + '%',
+                    left: Math.random() * 100 + '%',
+                    size: Math.random() * 2 + 1 + 'px',
+                    delay: Math.random() * 3 + 's',
+                    duration: Math.random() * 3 + 2 + 's'
+                }));
+            }, [skyState]);
+
+            const gradients = {
+                night: 'bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950', 
+                dawn: 'bg-gradient-to-b from-indigo-400 via-purple-300 to-orange-200', 
+                day: 'bg-gradient-to-b from-sky-400 to-blue-200', 
+                dusk: 'bg-gradient-to-b from-indigo-900 via-purple-800 to-orange-500', 
+            };
+
+            return (
+                <div className={`absolute inset-0 overflow-hidden -z-0 transition-all duration-1000 ${gradients[skyState] || gradients.day}`}>
+                    {/* STARS */}
+                    {skyState === 'night' && stars.map((s, i) => (
+                        <div key={i} className="star" style={{ top: s.top, left: s.left, width: s.size, height: s.size, '--delay': s.delay, '--duration': s.duration }} />
+                    ))}
+
+                    {/* CELESTIAL BODY (SUN or MOON) */}
+                    <div 
+                        className="absolute w-16 h-16 transition-all duration-[60000ms] ease-linear"
+                        style={{ 
+                            left: `calc(${celestialPos.x}% - 2rem)`, // Центрируем (-2rem = half width)
+                            top: `calc(${celestialPos.y}% - 2rem)`
+                        }}
+                    >
+                        {skyState === 'night' ? (
+                            // MOON
+                            <svg width="100%" height="100%" viewBox="0 0 100 100" className="drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]">
+                                <circle cx="50" cy="50" r="40" fill="#fbbf24" opacity={moonPhase > 0.4 && moonPhase < 0.6 ? 1 : 0.2} />
+                                <path d="M50 10 A40 40 0 1 0 50 90 A 30 40 0 1 1 50 10" fill="#fef3c7" />
+                            </svg>
+                        ) : (
+                            // SUN
+                            <div className="w-full h-full rounded-full bg-yellow-300 blur-md shadow-[0_0_40px_rgba(253,224,71,0.8)] animate-pulse-slow"></div>
+                        )}
+                    </div>
+
+                    {/* CLOUDS (Only Day/Dawn) */}
+                    {(skyState === 'day' || skyState === 'dawn') && (
+                        <>
+                            <div className="absolute top-12 left-0 w-24 h-8 opacity-40 animate-float" style={{ animationDuration: '40s' }}><svg viewBox="0 0 100 50" className="cloud-shape"><path d="M10,30 Q25,10 40,30 T70,30 T90,30" stroke="white" strokeWidth="20" strokeLinecap="round" /></svg></div>
+                            <div className="absolute top-20 left-1/2 w-32 h-10 opacity-30 animate-float" style={{ animationDuration: '60s', animationDelay: '-20s' }}><svg viewBox="0 0 100 50" className="cloud-shape"><path d="M10,30 Q25,10 40,30 T70,30 T90,30" stroke="white" strokeWidth="20" strokeLinecap="round" /></svg></div>
+                        </>
+                    )}
+                </div>
+            );
         };
 
-        const formatDistance = (km) => {
-            if (km < 1) return `${Math.round(km * 1000)} м`;
-            return `${km.toFixed(1)} км`;
-        };
-
-        const getMinutes = (timeStr) => {
-            if (!timeStr || timeStr === "-") return -1;
-            try {
-                const [h, m] = timeStr.split(':').map(Number);
-                return h * 60 + m;
-            } catch (e) {
-                return -1;
-            }
-        };
-
-        const getCurrentMinutes = () => {
-            const now = new Date();
-            return now.getHours() * 60 + now.getMinutes();
-        };
-
-        const isPast = (timeStr, currentMins) => {
-            const mins = getMinutes(timeStr);
-            return mins !== -1 && mins < currentMins;
-        };
-
-        const formatTimeLeft = (diffMins) => {
-            if (diffMins < 60) {
-                return `через ${diffMins} мин`;
-            }
-            const h = Math.floor(diffMins / 60);
-            const m = diffMins % 60;
-            return `через ${h} ч ${m} мин`;
-        };
-
-        // --- КОМПОНЕНТЫ ---
-
-        const Header = ({ activeRoute, setActiveRoute, isDark }) => (
-            <div className="sticky top-0 z-30 bg-white dark:bg-slate-900 shadow-sm transition-colors duration-500">
-                <div className="bg-slate-900 dark:bg-slate-950 text-white p-4 pb-4 rounded-b-3xl shadow-lg transition-colors duration-500">
-                    <div className="flex justify-between items-start mb-4">
-                        <h1 className="text-xl font-bold flex items-center gap-2">
-                            <HeaderBusIcon className="w-6 h-6 text-yellow-400" />
-                            <span>Автобусы Sunset Town</span>
-                        </h1>
-                        <div className="text-xs flex items-center gap-1 opacity-70 bg-white/10 px-2 py-1 rounded-full">
-                            {isDark ? <MoonIcon /> : <SunIcon />}
-                            <span>{isDark ? 'Ночь' : 'День'}</span>
+        // ... Header ...
+        const Header = ({ activeRoute, setActiveRoute, skyState, moonPhase, userLocation }) => (
+            <div className="sticky top-0 z-30 bg-transparent shadow-sm">
+                <div className="relative text-white p-4 pb-4 rounded-b-3xl shadow-lg overflow-hidden transition-all duration-500">
+                    <SkyBackground skyState={skyState} moonPhase={moonPhase} userLocation={userLocation} />
+                    <div className="relative z-10">
+                        <div className="flex justify-between items-start mb-4">
+                            <h1 className="text-xl font-bold flex items-center gap-2 drop-shadow-md">
+                                <HeaderBusIcon className="w-6 h-6 text-yellow-300 drop-shadow-sm" />
+                                <span>Автобусы Sunset Town</span>
+                            </h1>
+                            <div className="text-xs flex items-center gap-1 opacity-90 bg-black/20 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/20 shadow-sm">
+                                <span className="capitalize font-medium text-white">{
+                                    skyState === 'night' ? 'Ночь 🌙' : 
+                                    skyState === 'dawn' ? 'Утро 🌅' : 
+                                    skyState === 'dusk' ? 'Вечер 🌇' : 'День ☀️'
+                                }</span>
+                            </div>
                         </div>
-                    </div>
-                    <div className="flex bg-slate-800 dark:bg-slate-900 rounded-xl p-1 gap-1 transition-colors duration-500">
-                        {Object.keys(ROUTES).map(id => {
-                            const route = ROUTES[id];
-                            const isActive = activeRoute === Number(id);
-                            return (
-                                <button
-                                    key={id}
-                                    onClick={() => setActiveRoute(Number(id))}
-                                    className={`flex-1 py-3 px-1 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
-                                        isActive
-                                        ? 'bg-yellow-400 text-slate-900 shadow-md'
-                                        : 'text-slate-400 dark:text-slate-500 hover:text-white hover:bg-slate-700 dark:hover:bg-slate-800'
-                                    }`}
-                                >
-                                    <span className={isActive ? 'text-slate-900' : 'text-slate-500'}>
-                                        {route.icon}
-                                    </span>
-                                    <span>{route.shortName}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                    <div className="mt-3 text-center text-slate-400 text-xs font-medium">
-                        {ROUTES[activeRoute].desc}
+                        <div className="flex bg-white/20 backdrop-blur-md rounded-xl p-1 gap-1 border border-white/10 shadow-inner">
+                            {Object.keys(ROUTES).map(id => {
+                                const route = ROUTES[id];
+                                const isActive = activeRoute === Number(id);
+                                return (
+                                    <button
+                                        key={id}
+                                        onClick={() => setActiveRoute(Number(id))}
+                                        className={`flex-1 py-3 px-1 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                                            isActive
+                                            ? 'bg-yellow-400 text-slate-900 shadow-md transform scale-[1.02]'
+                                            : 'text-white hover:bg-white/10'
+                                        }`}
+                                    >
+                                        <span className={isActive ? 'text-slate-900' : 'text-white'}>{route.icon}</span>
+                                        <span>{route.shortName}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div className="mt-3 text-center text-white/90 text-xs font-medium drop-shadow-md">
+                            {ROUTES[activeRoute].desc}
+                        </div>
                     </div>
                 </div>
             </div>
         );
 
+        // ... DirectionToggle ...
         const DirectionToggle = ({ routeData, direction, setDirection }) => {
             const isForward = direction === 'forward';
             const stops = routeData.stops.forward;
             const startPoint = stops[0].split(' ')[0];
             const endPoint = stops[stops.length - 1].split(' ')[0];
-
             return (
                 <div className="px-4 mt-4 relative z-10">
                     <button
                         onClick={() => setDirection(isForward ? 'backward' : 'forward')}
                         className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all shadow-sm active:scale-95 duration-300 ${
                              isForward 
-                             ? 'bg-white border-slate-200 dark:bg-slate-800 dark:border-slate-700' 
-                             : 'bg-slate-50 border-slate-300 dark:bg-slate-900 dark:border-slate-800'
+                             ? 'bg-white/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 backdrop-blur-sm' 
+                             : 'bg-slate-50/80 border-slate-300 dark:bg-slate-900/80 dark:border-slate-800 backdrop-blur-sm'
                         }`}
                     >
                         <div className="flex flex-col items-start">
@@ -363,7 +376,6 @@
                                 {isForward ? "ТУДА" : "ОБРАТНО"}
                             </span>
                         </div>
-                        
                         <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 font-medium bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg max-w-[50%] overflow-hidden whitespace-nowrap transition-colors duration-300">
                            <span className="truncate">{isForward ? startPoint : endPoint}</span>
                            <ArrowIcon />
@@ -374,13 +386,13 @@
             );
         };
 
+        // ... NextBus ...
         const NextBus = ({ schedule, currentMins, userStops }) => {
             let targetStop = null;
             let displayTime = null;
             let timeUntil = 0;
 
             if (userStops && userStops.length > 0) {
-                // Ищем ближайшую остановку, где есть рейсы
                 for (const stop of userStops) {
                      const validRow = schedule.find(row => {
                          const timeStr = row[stop.index];
@@ -388,7 +400,6 @@
                          const mins = getMinutes(timeStr);
                          return mins > currentMins;
                      });
-
                      if (validRow) {
                          targetStop = stop;
                          displayTime = validRow[stop.index];
@@ -397,7 +408,6 @@
                      }
                 }
             } else {
-                // Если геопозиции нет, берем следующий рейс от начала маршрута
                 const nextRow = schedule.find(row => {
                     const firstValidTime = row.find(t => t !== "-");
                     if (!firstValidTime) return false;
@@ -412,69 +422,67 @@
             }
 
             if (!displayTime) return (
-                <div className="mx-4 mt-4 p-5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-center text-slate-500 dark:text-slate-400 text-sm font-medium transition-colors duration-300">
+                <div className="mx-4 mt-4 p-5 bg-slate-100/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-center text-slate-500 dark:text-slate-400 text-sm font-medium transition-colors duration-300 backdrop-blur-sm">
                     На сегодня рейсов больше нет 😴
                 </div>
             );
 
+            // COLOR LOGIC FOR CARD
+            const getCardStyle = (minutes) => {
+                if (minutes >= 20) return 'from-emerald-500 to-teal-700'; // Green
+                if (minutes >= 10) return 'from-yellow-500 to-amber-600'; // Yellow/Amber
+                if (minutes >= 5) {
+                    // Gradual shift 10 -> 5
+                    if (minutes >= 8) return 'from-amber-500 to-orange-600'; // Amber-Orange
+                    return 'from-orange-500 to-red-600'; // Orange-Red
+                }
+                return 'from-red-600 to-rose-700'; // Red
+            };
+
+            const bgClass = getCardStyle(timeUntil);
+
             return (
-                <div className="mx-4 mt-4 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-2xl p-5 text-white shadow-lg flex flex-col relative overflow-hidden transition-all duration-500">
+                <div className={`mx-4 mt-4 bg-gradient-to-br ${bgClass} rounded-2xl p-5 text-white shadow-lg flex flex-col relative overflow-hidden transition-all duration-500 ring-1 ring-white/20`}>
                     <div className="flex justify-between items-start relative z-10">
                         <div>
                             {targetStop ? (
                                 <div className="mb-3">
                                     <div className="flex items-center gap-1.5 text-white font-bold text-sm mb-1">
-                                        <div className="relative flex h-3 w-3 mr-1">
-                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                                          <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-400"></span>
-                                        </div>
-                                        <div className="flex items-center gap-1 drop-shadow-sm">
-                                            <img 
-                                                src="https://www.dropbox.com/scl/fi/emlnigpxmj5p6k7trjlw9/Gemini_Generated_Image_iqkrgaiqkrgaiqkr-Photoroom.png?rlkey=xv8cuiifu3drj2q4jb6lt4stm&st=gry52n38&raw=1" 
-                                                className="w-5 h-5 object-contain"
-                                                alt="Stop"
-                                            />
+                                        <div className="flex items-center gap-1 drop-shadow-sm bg-black/20 px-2 py-1 rounded-lg backdrop-blur-md">
+                                            <img src="https://www.dropbox.com/scl/fi/emlnigpxmj5p6k7trjlw9/Gemini_Generated_Image_iqkrgaiqkrgaiqkr-Photoroom.png?rlkey=xv8cuiifu3drj2q4jb6lt4stm&st=gry52n38&raw=1" className="w-5 h-5 object-contain" alt="Stop"/>
                                             <span>{targetStop.name} ({formatDistance(targetStop.dist)})</span>
                                         </div>
                                     </div>
-                                    <div className="text-emerald-100 text-xs opacity-90 font-medium">
-                                        Следующий автобус приедет в
-                                    </div>
+                                    <div className="text-white text-xs opacity-90 font-medium ml-1">Следующий автобус приедет в</div>
                                 </div>
                             ) : (
-                                <div className="text-emerald-100 text-xs font-bold uppercase tracking-wider mb-1">
-                                    Ближайший рейс
-                                </div>
+                                <div className="text-white text-xs font-bold uppercase tracking-wider mb-1">Ближайший рейс</div>
                             )}
-
-                            <div className="text-5xl font-extrabold tracking-tight leading-none mb-1">{displayTime}</div>
-                            <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-medium text-emerald-50 mt-2">
+                            <div className="text-5xl font-extrabold tracking-tight leading-none mb-1 drop-shadow-md">{displayTime}</div>
+                            <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-white mt-2 shadow-sm border border-white/10">
                                 <HourglassIcon className="w-3 h-3" />
                                 {formatTimeLeft(timeUntil)}
                             </div>
                         </div>
-                        <div className="p-2 bg-white/10 rounded-full backdrop-blur-md">
+                        <div className="p-3 bg-white/10 rounded-full backdrop-blur-md border border-white/10 shadow-inner">
                             <ClockIcon className="w-8 h-8 text-white" />
                         </div>
                     </div>
-                    
                     <div className="absolute -right-6 -bottom-8 w-32 h-32 bg-white opacity-10 rounded-full blur-2xl"></div>
-                    <div className="absolute -left-6 -top-8 w-24 h-24 bg-emerald-300 opacity-20 rounded-full blur-2xl"></div>
+                    <div className="absolute -left-6 -top-8 w-24 h-24 bg-white opacity-10 rounded-full blur-2xl"></div>
                 </div>
             );
         };
 
+        // ... ScheduleTable ...
         const ScheduleTable = ({ stops, schedule, currentMins, userStops, busImage }) => {
             const closestStopIndex = userStops && userStops.length > 0 ? userStops[0].index : -1;
-
-            // --- ЛОГИКА АКТИВНОГО АВТОБУСА ---
-            let activeBus = null; // { rowIndex, stopIndex, progress, isStationary }
+            let activeBus = null;
 
             for (let r = 0; r < schedule.length; r++) {
                 const row = schedule[r];
                 let startMins = -1;
                 let endMins = -1;
-                
                 for (let i = 0; i < row.length; i++) {
                     const m = getMinutes(row[i]);
                     if (m !== -1) { startMins = m; break; }
@@ -483,59 +491,34 @@
                     const m = getMinutes(row[i]);
                     if (m !== -1) { endMins = m; break; }
                 }
-
                 if (startMins !== -1 && endMins !== -1) {
                     if (currentMins >= startMins && currentMins <= endMins) {
                         let currentSegmentStartIdx = -1;
                         let nextValidStopIdx = -1;
                         let isStationary = false;
-                        
-                        // Ищем последнюю пройденную остановку (или текущую)
                         for (let i = 0; i < row.length; i++) {
                             const m = getMinutes(row[i]);
                             if (m !== -1 && m <= currentMins) {
                                 currentSegmentStartIdx = i;
-                                // Если текущая минута совпадает с временем остановки, автобус стоит
-                                if (m === currentMins) {
-                                    isStationary = true;
-                                }
+                                if (m === currentMins) isStationary = true;
                             }
                         }
-
-                        // Ищем следующую остановку
                         if (currentSegmentStartIdx !== -1) {
                             for (let j = currentSegmentStartIdx + 1; j < row.length; j++) {
                                 const m = getMinutes(row[j]);
-                                if (m !== -1) {
-                                    nextValidStopIdx = j;
-                                    break;
-                                }
+                                if (m !== -1) { nextValidStopIdx = j; break; }
                             }
                         }
-
-                        // Рассчитываем прогресс
                         let progress = 0;
                         if (currentSegmentStartIdx !== -1 && nextValidStopIdx !== -1 && !isStationary) {
                             const timeStart = getMinutes(row[currentSegmentStartIdx]);
                             const timeEnd = getMinutes(row[nextValidStopIdx]);
                             const duration = timeEnd - timeStart;
                             const elapsed = currentMins - timeStart;
-                            
-                            // Если автобус только что уехал (elapsed > 0), считаем прогресс
-                            if (duration > 0) {
-                                progress = elapsed / duration;
-                            } else {
-                                progress = 0.95; 
-                            }
+                            if (duration > 0) progress = elapsed / duration;
+                            else progress = 0.95; 
                         } 
-                        // Если isStationary, то прогресс оставляем 0 (он будет стоять в начале ячейки, под временем)
-
-                        activeBus = {
-                            rowIndex: r,
-                            stopIndex: currentSegmentStartIdx,
-                            progress: progress,
-                            isStationary: isStationary
-                        };
+                        activeBus = { rowIndex: r, stopIndex: currentSegmentStartIdx, progress: progress, isStationary: isStationary };
                         break;
                     }
                 }
@@ -546,19 +529,13 @@
                     <h3 className="px-4 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase mb-4 flex items-center gap-2">
                          <InfoIcon /> Полное расписание
                     </h3>
-                    
                     <div className="overflow-x-auto scrollbar-hide pb-4">
                         <table className="w-full text-sm text-left border-collapse min-w-[600px] md:min-w-full">
-                            <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50 dark:bg-slate-800 border-y border-slate-200 dark:border-slate-700 transition-colors duration-300">
+                            <thead className="text-xs text-slate-500 dark:text-slate-400 uppercase bg-slate-50/50 dark:bg-slate-800/50 border-y border-slate-200 dark:border-slate-700 transition-colors duration-300">
                                 <tr>
                                     {stops.map((stop, idx) => (
-                                        <th key={idx} className={`px-4 py-3 font-bold whitespace-nowrap min-w-[120px] first:pl-6 last:pr-6 ${
-                                            idx === closestStopIndex ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''
-                                        }`}>
-                                            <div className="flex items-center gap-1">
-                                                {stop}
-                                                {idx === closestStopIndex && <LocationIcon className="w-3 h-3" />}
-                                            </div>
+                                        <th key={idx} className={`px-4 py-3 font-bold whitespace-nowrap min-w-[120px] first:pl-6 last:pr-6 ${idx === closestStopIndex ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : ''}`}>
+                                            <div className="flex items-center gap-1">{stop} {idx === closestStopIndex && <LocationIcon className="w-3 h-3" />}</div>
                                         </th>
                                     ))}
                                 </tr>
@@ -574,83 +551,40 @@
                                          const firstValidTime = row.find(t => t !== "-");
                                          isRowPast = firstValidTime && isPast(firstValidTime, currentMins);
                                     }
-                                    
                                     const isActiveRow = activeBus && activeBus.rowIndex === rowIdx;
                                     if (isActiveRow) isRowPast = false;
 
                                     return (
-                                        <tr 
-                                            key={rowIdx} 
-                                            className={`border-b border-slate-100 dark:border-slate-800 last:border-0 transition-colors duration-300 ${
-                                                isRowPast 
-                                                ? 'bg-slate-50/50 dark:bg-slate-900/50' 
-                                                : 'bg-white dark:bg-slate-900 hover:bg-yellow-50 dark:hover:bg-yellow-900/10'
-                                            } ${isActiveRow ? 'bg-yellow-50/50 dark:bg-yellow-900/30' : ''}`}
-                                        >
+                                        <tr key={rowIdx} className={`border-b border-slate-100 dark:border-slate-800 last:border-0 transition-colors duration-300 ${isRowPast ? 'bg-slate-50/30 dark:bg-slate-900/30' : 'bg-white/80 dark:bg-slate-900/80'} ${isActiveRow ? 'bg-yellow-50/50 dark:bg-yellow-900/20' : ''}`}>
                                             {row.map((time, cellIdx) => {
                                                 const isHighlighted = cellIdx === closestStopIndex;
                                                 const showBus = activeBus && activeBus.rowIndex === rowIdx && activeBus.stopIndex === cellIdx;
-                                                
-                                                // Проверка: Прошло ли время на этой конкретной остановке?
                                                 const isTimePast = time !== "-" && isPast(time, currentMins);
-
-                                                // Базовые классы для текста
+                                                
                                                 let textColorClass;
+                                                if (isRowPast || isTimePast) textColorClass = 'text-slate-300 dark:text-slate-600';
+                                                else textColorClass = isHighlighted ? 'text-blue-700 dark:text-blue-400 font-bold' : 'text-slate-800 dark:text-slate-200 font-bold';
                                                 
-                                                if (isRowPast) {
-                                                    // Если весь ряд уже прошел
-                                                    textColorClass = 'text-slate-300 dark:text-slate-600';
-                                                } else if (isTimePast) {
-                                                    // Ряд активен, но эта конкретная остановка уже позади
-                                                    textColorClass = 'text-slate-300 dark:text-slate-600';
-                                                } else {
-                                                    // Будущая остановка
-                                                    textColorClass = isHighlighted ? 'text-blue-700 dark:text-blue-400 font-bold' : 'text-slate-800 dark:text-slate-200 font-bold';
-                                                }
-                                                
-                                                // Z-index логика: если автобус едет (!isStationary), он должен перекрывать текст (z-20 vs z-0)
-                                                // Если стоит, текст должен быть сверху (z-10 vs z-0)
                                                 const textZIndex = showBus && !activeBus.isStationary ? 'z-0' : 'z-10';
                                                 const busZIndex = showBus && !activeBus.isStationary ? 'z-20' : 'z-0';
 
                                                 return (
-                                                    <td key={cellIdx} className={`px-4 py-3 whitespace-nowrap first:pl-6 last:pr-6 relative ${
-                                                        isHighlighted ? 'bg-blue-50/30 dark:bg-blue-900/20' : ''
-                                                    }`}>
+                                                    <td key={cellIdx} className={`px-4 py-3 whitespace-nowrap first:pl-6 last:pr-6 relative ${isHighlighted ? 'bg-blue-50/30 dark:bg-blue-900/20' : ''}`}>
                                                         {showBus && (
-                                                            <div 
-                                                                className={`absolute inset-y-0 left-0 w-full flex items-center overflow-visible ${busZIndex}`}
-                                                                style={{ pointerEvents: 'none' }}
-                                                            >
-                                                                <div 
-                                                                    className={`absolute transition-all duration-1000 ease-linear will-change-left ${!activeBus.isStationary ? 'animate-bus' : ''}`}
-                                                                    style={{
-                                                                        left: activeBus.isStationary 
-                                                                            ? '1.5rem' // Начало текста (примерно)
-                                                                            : `calc(1.5rem + ${activeBus.progress * 60}px)`
-                                                                    }}
-                                                                >
-                                                                    <img 
-                                                                        src={busImage} 
-                                                                        alt="Bus" 
-                                                                        className="h-5 w-auto drop-shadow-sm object-contain flex-shrink-0"
-                                                                    />
+                                                            <div className={`absolute inset-y-0 left-0 w-full flex items-center overflow-visible ${busZIndex}`} style={{ pointerEvents: 'none' }}>
+                                                                <div className={`absolute transition-all duration-1000 ease-linear will-change-left ${!activeBus.isStationary ? 'animate-bus' : ''}`} style={{ left: activeBus.isStationary ? '1.5rem' : `calc(1.5rem + ${activeBus.progress * 60}px)` }}>
+                                                                    <img src={busImage} alt="Bus" className="h-5 w-auto drop-shadow-sm object-contain flex-shrink-0" />
                                                                 </div>
                                                             </div>
                                                         )}
-
                                                         {time === "-" ? (
                                                             <span className="text-slate-200 dark:text-slate-700 font-light relative z-10">—</span>
                                                         ) : (
                                                             <span className={`relative inline-block ${textZIndex}`}>
                                                                 {showBus && activeBus.isStationary ? (
-                                                                    <span className="bg-black/50 text-white rounded px-1 py-0.5 backdrop-blur-sm font-bold">
-                                                                        {time}
-                                                                    </span>
+                                                                    <span className="bg-black/50 text-white rounded px-1 py-0.5 backdrop-blur-sm font-bold">{time}</span>
                                                                 ) : (
-                                                                    <span className={`font-mono text-[15px] transition-colors duration-300 ${textColorClass}`}>
-                                                                        {time}
-                                                                    </span>
+                                                                    <span className={`font-mono text-[15px] transition-colors duration-300 ${textColorClass}`}>{time}</span>
                                                                 )}
                                                             </span>
                                                         )}
@@ -664,9 +598,7 @@
                         </table>
                     </div>
                     <div className="text-center text-[10px] text-slate-400 dark:text-slate-600 mt-2 px-4 flex justify-center items-center gap-2">
-                         <ArrowIcon className="w-3 h-3 rotate-90" />
-                         <span>Листайте таблицу влево-вправо</span>
-                         <ArrowIcon className="w-3 h-3 -rotate-90" />
+                         <ArrowIcon className="w-3 h-3 rotate-90" /><span>Листайте таблицу влево-вправо</span><ArrowIcon className="w-3 h-3 -rotate-90" />
                     </div>
                 </div>
             );
@@ -677,54 +609,62 @@
             const [direction, setDirection] = useState('forward');
             const [currentMins, setCurrentMins] = useState(getCurrentMinutes());
             const [isDark, setIsDark] = useState(false);
+            const [skyState, setSkyState] = useState('day');
+            const [moonPhase, setMoonPhase] = useState(0.5);
             const [userLocation, setUserLocation] = useState(null);
             const [userStops, setUserStops] = useState(null);
 
             useEffect(() => {
                 const updateTheme = () => {
-                    const hour = new Date().getHours();
-                    const isDarkTime = hour >= 18 || hour < 6;
-                    setIsDark(isDarkTime);
-                    if (isDarkTime) {
-                        document.documentElement.classList.add('dark');
-                    } else {
-                        document.documentElement.classList.remove('dark');
+                    const now = new Date();
+                    let currentState = 'day';
+                    let isDarkTime = false;
+
+                    if (typeof SunCalc !== 'undefined') {
+                        const moon = SunCalc.getMoonIllumination(now);
+                        setMoonPhase(moon.phase);
                     }
+
+                    if (userLocation && typeof SunCalc !== 'undefined') {
+                        const times = SunCalc.getTimes(now, userLocation.lat, userLocation.lng);
+                        if (now < times.dawn || now > times.night) { currentState = 'night'; isDarkTime = true; }
+                        else if (now < times.sunrise) { currentState = 'dawn'; isDarkTime = false; } 
+                        else if (now < times.sunsetStart) { currentState = 'day'; isDarkTime = false; }
+                        else if (now < times.night) { currentState = 'dusk'; isDarkTime = true; } 
+                        else { currentState = 'night'; isDarkTime = true; }
+                    } else {
+                        const hour = now.getHours();
+                        if (hour >= 20 || hour < 6) { currentState = 'night'; isDarkTime = true; }
+                        else if (hour >= 6 && hour < 9) { currentState = 'dawn'; isDarkTime = false; }
+                        else if (hour >= 18 && hour < 20) { currentState = 'dusk'; isDarkTime = true; }
+                        else { currentState = 'day'; isDarkTime = false; }
+                    }
+
+                    setSkyState(currentState);
+                    setIsDark(isDarkTime);
+                    if (isDarkTime) document.documentElement.classList.add('dark');
+                    else document.documentElement.classList.remove('dark');
                 };
                 updateTheme();
                 const timer = setInterval(updateTheme, 60000);
                 return () => clearInterval(timer);
-            }, []);
+            }, [userLocation]);
 
-            useEffect(() => {
-                const interval = setInterval(() => {
-                    setCurrentMins(getCurrentMinutes());
-                }, 5000); 
-                return () => clearInterval(interval);
-            }, []);
-
+            useEffect(() => { const interval = setInterval(() => setCurrentMins(getCurrentMinutes()), 5000); return () => clearInterval(interval); }, []);
+            
             useEffect(() => {
                 if ("geolocation" in navigator) {
                     navigator.geolocation.getCurrentPosition(
-                        (position) => {
-                            setUserLocation({
-                                lat: position.coords.latitude,
-                                lng: position.coords.longitude
-                            });
-                        },
-                        (error) => {
-                            console.log("Geo error or denied", error);
-                        }
+                        (position) => setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude }),
+                        (error) => console.log("Geo denied")
                     );
                 }
             }, []);
 
             useEffect(() => {
                 if (!userLocation) return;
-                
                 const activeData = ROUTES[activeRouteId];
                 const currentStops = activeData.stops[direction];
-                
                 const stopsWithDist = currentStops.map((stopName, index) => {
                     const coordKey = Object.keys(STOP_COORDINATES).find(key => stopName.includes(key));
                     if (coordKey) {
@@ -734,62 +674,39 @@
                     }
                     return null;
                 }).filter(item => item !== null);
-
                 stopsWithDist.sort((a, b) => a.dist - b.dist);
-
-                if (stopsWithDist.length > 0 && stopsWithDist[0].dist < 15) {
-                    setUserStops(stopsWithDist);
-                } else {
-                    setUserStops(null);
-                }
-
+                if (stopsWithDist.length > 0 && stopsWithDist[0].dist < 15) setUserStops(stopsWithDist);
+                else setUserStops(null);
             }, [userLocation, activeRouteId, direction]);
 
-            useEffect(() => {
-                setDirection('forward');
-            }, [activeRouteId]);
+            useEffect(() => { setDirection('forward'); }, [activeRouteId]);
 
             const activeData = ROUTES[activeRouteId];
             const currentStops = activeData.stops[direction];
             const currentSchedule = activeData.schedule[direction];
 
-            return (
-                <div className="min-h-screen bg-white dark:bg-slate-900 max-w-lg mx-auto shadow-2xl md:my-10 overflow-hidden relative md:rounded-[30px] border-slate-200 dark:border-slate-800 md:border transition-colors duration-500">
-                    <Header activeRoute={activeRouteId} setActiveRoute={setActiveRouteId} isDark={isDark} />
-                    
-                    <main>
-                        <DirectionToggle 
-                            routeData={activeData} 
-                            direction={direction} 
-                            setDirection={setDirection} 
-                        />
+            const globalBgClass = {
+                'night': 'bg-slate-950',
+                'dawn': 'bg-orange-50',
+                'day': 'bg-slate-50',
+                'dusk': 'bg-slate-900',
+            }[skyState];
 
+            return (
+                <div className={`min-h-screen ${globalBgClass} max-w-lg mx-auto shadow-2xl md:my-10 overflow-hidden relative md:rounded-[30px] border-slate-200 dark:border-slate-800 md:border transition-colors duration-1000`}>
+                    <Header activeRoute={activeRouteId} setActiveRoute={setActiveRouteId} isDark={isDark} skyState={skyState} moonPhase={moonPhase} userLocation={userLocation} />
+                    <main>
+                        <DirectionToggle routeData={activeData} direction={direction} setDirection={setDirection} />
                         {userStops && userStops.length > 0 && (
-                             <div className="mx-4 mt-2 mb-1 flex items-center justify-center gap-2 text-xs text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-blue-900/20 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800 animate-fadeIn transition-colors duration-300">
+                             <div className="mx-4 mt-2 mb-1 flex items-center justify-center gap-2 text-xs text-blue-600 dark:text-blue-400 font-medium bg-blue-50/50 dark:bg-blue-900/20 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800 animate-fadeIn transition-colors duration-300 backdrop-blur-sm">
                                 <LocationIcon className="w-3 h-3" />
                                 <span>Вы рядом с: <b>{userStops[0].name}</b></span>
                             </div>
                         )}
-
-                        <NextBus 
-                            schedule={currentSchedule} 
-                            currentMins={currentMins} 
-                            stops={currentStops}
-                            userStops={userStops}
-                            nearestStop={userStops && userStops.length > 0 ? userStops[0].name : null}
-                        />
-
-                        <ScheduleTable 
-                            stops={currentStops} 
-                            schedule={currentSchedule} 
-                            currentMins={currentMins}
-                            userStops={userStops}
-                            nearestStop={userStops && userStops.length > 0 ? userStops[0].name : null}
-                            busImage={activeData.busImage}
-                        />
+                        <NextBus schedule={currentSchedule} currentMins={currentMins} stops={currentStops} userStops={userStops} nearestStop={userStops && userStops.length > 0 ? userStops[0].name : null} />
+                        <ScheduleTable stops={currentStops} schedule={currentSchedule} currentMins={currentMins} userStops={userStops} nearestStop={userStops && userStops.length > 0 ? userStops[0].name : null} busImage={activeData.busImage} />
                     </main>
-                    
-                    <footer className="text-center py-6 text-xs text-slate-300 dark:text-slate-600 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800 transition-colors duration-500">
+                    <footer className="text-center py-6 text-xs text-slate-300 dark:text-slate-600 border-t border-slate-100 dark:border-slate-800 transition-colors duration-500">
                         <p className="font-medium">Приятной поездки! 🚌</p>
                         <p className="mt-1 opacity-60 text-[10px]">by EvZem</p>
                     </footer>
