@@ -428,7 +428,14 @@
                                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
                                           <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-400"></span>
                                         </div>
-                                        <span className="drop-shadow-sm">Остановка: {targetStop.name} ({formatDistance(targetStop.dist)})</span>
+                                        <div className="flex items-center gap-1 drop-shadow-sm">
+                                            <img 
+                                                src="https://www.dropbox.com/scl/fi/emlnigpxmj5p6k7trjlw9/Gemini_Generated_Image_iqkrgaiqkrgaiqkr-Photoroom.png?rlkey=xv8cuiifu3drj2q4jb6lt4stm&st=gry52n38&raw=1" 
+                                                className="w-5 h-5 object-contain"
+                                                alt="Stop"
+                                            />
+                                            <span>{targetStop.name} ({formatDistance(targetStop.dist)})</span>
+                                        </div>
                                     </div>
                                     <div className="text-emerald-100 text-xs opacity-90 font-medium">
                                         Следующий автобус приедет в
@@ -458,11 +465,10 @@
         };
 
         const ScheduleTable = ({ stops, schedule, currentMins, userStops, busImage }) => {
-            // Подсветка ближайшей физически остановки (первая в списке userStops)
             const closestStopIndex = userStops && userStops.length > 0 ? userStops[0].index : -1;
 
             // --- ЛОГИКА АКТИВНОГО АВТОБУСА ---
-            let activeBus = null;
+            let activeBus = null; // { rowIndex, stopIndex, progress, isStationary }
 
             for (let r = 0; r < schedule.length; r++) {
                 const row = schedule[r];
@@ -482,14 +488,21 @@
                     if (currentMins >= startMins && currentMins <= endMins) {
                         let currentSegmentStartIdx = -1;
                         let nextValidStopIdx = -1;
+                        let isStationary = false;
                         
+                        // Ищем последнюю пройденную остановку (или текущую)
                         for (let i = 0; i < row.length; i++) {
                             const m = getMinutes(row[i]);
                             if (m !== -1 && m <= currentMins) {
                                 currentSegmentStartIdx = i;
+                                // Если текущая минута совпадает с временем остановки, автобус стоит
+                                if (m === currentMins) {
+                                    isStationary = true;
+                                }
                             }
                         }
 
+                        // Ищем следующую остановку
                         if (currentSegmentStartIdx !== -1) {
                             for (let j = currentSegmentStartIdx + 1; j < row.length; j++) {
                                 const m = getMinutes(row[j]);
@@ -500,25 +513,28 @@
                             }
                         }
 
+                        // Рассчитываем прогресс
                         let progress = 0;
-                        if (currentSegmentStartIdx !== -1 && nextValidStopIdx !== -1) {
+                        if (currentSegmentStartIdx !== -1 && nextValidStopIdx !== -1 && !isStationary) {
                             const timeStart = getMinutes(row[currentSegmentStartIdx]);
                             const timeEnd = getMinutes(row[nextValidStopIdx]);
                             const duration = timeEnd - timeStart;
                             const elapsed = currentMins - timeStart;
+                            
+                            // Если автобус только что уехал (elapsed > 0), считаем прогресс
                             if (duration > 0) {
                                 progress = elapsed / duration;
                             } else {
                                 progress = 0.95; 
                             }
-                        } else if (currentSegmentStartIdx !== -1 && nextValidStopIdx === -1) {
-                             progress = 0; 
-                        }
+                        } 
+                        // Если isStationary, то прогресс оставляем 0 (он будет стоять в начале ячейки, под временем)
 
                         activeBus = {
                             rowIndex: r,
                             stopIndex: currentSegmentStartIdx,
-                            progress: progress
+                            progress: progress,
+                            isStationary: isStationary
                         };
                         break;
                     }
@@ -550,11 +566,10 @@
                             <tbody>
                                 {schedule.map((row, rowIdx) => {
                                     let isRowPast = false;
-                                    // Логика "прошедшего" рейса: если мы знаем ближайшую остановку, судим по ней
                                     if (closestStopIndex !== -1) {
                                         const time = row[closestStopIndex];
                                         if (time && time !== "-" && isPast(time, currentMins)) isRowPast = true;
-                                        if (time === "-") isRowPast = true; // Если не останавливается, то "прошел" для нас
+                                        if (time === "-") isRowPast = true;
                                     } else {
                                          const firstValidTime = row.find(t => t !== "-");
                                          isRowPast = firstValidTime && isPast(firstValidTime, currentMins);
@@ -576,36 +591,68 @@
                                                 const isHighlighted = cellIdx === closestStopIndex;
                                                 const showBus = activeBus && activeBus.rowIndex === rowIdx && activeBus.stopIndex === cellIdx;
                                                 
+                                                // Проверка: Прошло ли время на этой конкретной остановке?
+                                                const isTimePast = time !== "-" && isPast(time, currentMins);
+
+                                                // Базовые классы для текста
+                                                let textColorClass;
+                                                
+                                                if (isRowPast) {
+                                                    // Если весь ряд уже прошел
+                                                    textColorClass = 'text-slate-300 dark:text-slate-600';
+                                                } else if (isTimePast) {
+                                                    // Ряд активен, но эта конкретная остановка уже позади
+                                                    textColorClass = 'text-slate-300 dark:text-slate-600';
+                                                } else {
+                                                    // Будущая остановка
+                                                    textColorClass = isHighlighted ? 'text-blue-700 dark:text-blue-400 font-bold' : 'text-slate-800 dark:text-slate-200 font-bold';
+                                                }
+                                                
+                                                // Z-index логика: если автобус едет (!isStationary), он должен перекрывать текст (z-20 vs z-0)
+                                                // Если стоит, текст должен быть сверху (z-10 vs z-0)
+                                                const textZIndex = showBus && !activeBus.isStationary ? 'z-0' : 'z-10';
+                                                const busZIndex = showBus && !activeBus.isStationary ? 'z-20' : 'z-0';
+
                                                 return (
                                                     <td key={cellIdx} className={`px-4 py-3 whitespace-nowrap first:pl-6 last:pr-6 relative ${
                                                         isHighlighted ? 'bg-blue-50/30 dark:bg-blue-900/20' : ''
                                                     }`}>
-                                                        {time === "-" ? (
-                                                            <span className="text-slate-200 dark:text-slate-700 font-light">—</span>
-                                                        ) : (
-                                                            <span className={`font-mono text-[15px] relative z-10 transition-colors duration-300 ${
-                                                                isRowPast ? 'text-slate-300 dark:text-slate-600' : 
-                                                                (isHighlighted ? 'text-blue-700 dark:text-blue-400 font-bold' : 'text-slate-800 dark:text-slate-200 font-bold')
-                                                            }`}>
-                                                                {time}
-                                                            </span>
-                                                        )}
-                                                        
                                                         {showBus && (
                                                             <div 
-                                                                className="absolute bottom-1 left-0 z-20 transition-all duration-1000 ease-linear animate-bus"
-                                                                style={{
-                                                                    left: `calc(30px + ${activeBus.progress * 60}%)`,
-                                                                    opacity: activeBus.progress > 0.95 ? 0.5 : 1
-                                                                }}
+                                                                className={`absolute inset-y-0 left-0 w-full flex items-center overflow-visible ${busZIndex}`}
+                                                                style={{ pointerEvents: 'none' }}
                                                             >
-                                                                <img 
-                                                                    src={busImage} 
-                                                                    alt="Bus" 
-                                                                    className="w-8 h-auto drop-shadow-md" 
-                                                                    style={{ display: 'block' }}
-                                                                />
+                                                                <div 
+                                                                    className={`absolute transition-all duration-1000 ease-linear will-change-left ${!activeBus.isStationary ? 'animate-bus' : ''}`}
+                                                                    style={{
+                                                                        left: activeBus.isStationary 
+                                                                            ? '1.5rem' // Начало текста (примерно)
+                                                                            : `calc(1.5rem + ${activeBus.progress * 60}px)`
+                                                                    }}
+                                                                >
+                                                                    <img 
+                                                                        src={busImage} 
+                                                                        alt="Bus" 
+                                                                        className="h-5 w-auto drop-shadow-sm object-contain flex-shrink-0"
+                                                                    />
+                                                                </div>
                                                             </div>
+                                                        )}
+
+                                                        {time === "-" ? (
+                                                            <span className="text-slate-200 dark:text-slate-700 font-light relative z-10">—</span>
+                                                        ) : (
+                                                            <span className={`relative inline-block ${textZIndex}`}>
+                                                                {showBus && activeBus.isStationary ? (
+                                                                    <span className="bg-black/50 text-white rounded px-1 py-0.5 backdrop-blur-sm font-bold">
+                                                                        {time}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className={`font-mono text-[15px] transition-colors duration-300 ${textColorClass}`}>
+                                                                        {time}
+                                                                    </span>
+                                                                )}
+                                                            </span>
                                                         )}
                                                     </td>
                                                 );
@@ -630,32 +677,25 @@
             const [direction, setDirection] = useState('forward');
             const [currentMins, setCurrentMins] = useState(getCurrentMinutes());
             const [isDark, setIsDark] = useState(false);
-            
-            // Geolocation states
             const [userLocation, setUserLocation] = useState(null);
-            const [userStops, setUserStops] = useState(null); // Array of { name, dist, index }
+            const [userStops, setUserStops] = useState(null);
 
-            // --- ТЕМА (День/Ночь) ---
             useEffect(() => {
                 const updateTheme = () => {
                     const hour = new Date().getHours();
-                    // Тёмная тема с 18:00 до 06:00
                     const isDarkTime = hour >= 18 || hour < 6;
                     setIsDark(isDarkTime);
-                    
                     if (isDarkTime) {
                         document.documentElement.classList.add('dark');
                     } else {
                         document.documentElement.classList.remove('dark');
                     }
                 };
-
-                updateTheme(); // Запустить сразу
-                const timer = setInterval(updateTheme, 60000); // Проверять каждую минуту
+                updateTheme();
+                const timer = setInterval(updateTheme, 60000);
                 return () => clearInterval(timer);
             }, []);
 
-            // Обновляем время часто для плавной анимации автобуса
             useEffect(() => {
                 const interval = setInterval(() => {
                     setCurrentMins(getCurrentMinutes());
@@ -663,7 +703,6 @@
                 return () => clearInterval(interval);
             }, []);
 
-            // Запрашиваем геолокацию при старте
             useEffect(() => {
                 if ("geolocation" in navigator) {
                     navigator.geolocation.getCurrentPosition(
@@ -680,16 +719,13 @@
                 }
             }, []);
 
-            // Вычисляем ближайшие остановки
             useEffect(() => {
                 if (!userLocation) return;
                 
                 const activeData = ROUTES[activeRouteId];
                 const currentStops = activeData.stops[direction];
                 
-                // Создаем список всех остановок с дистанцией
                 const stopsWithDist = currentStops.map((stopName, index) => {
-                    // Ищем ключ координат по частичному совпадению
                     const coordKey = Object.keys(STOP_COORDINATES).find(key => stopName.includes(key));
                     if (coordKey) {
                         const coords = STOP_COORDINATES[coordKey];
@@ -699,10 +735,8 @@
                     return null;
                 }).filter(item => item !== null);
 
-                // Сортируем по возрастанию дистанции
                 stopsWithDist.sort((a, b) => a.dist - b.dist);
 
-                // Если есть остановки ближе 15 км, сохраняем их
                 if (stopsWithDist.length > 0 && stopsWithDist[0].dist < 15) {
                     setUserStops(stopsWithDist);
                 } else {
