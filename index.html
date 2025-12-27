@@ -45,13 +45,13 @@
             animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
         }
 
-        /* Анимация колес автобуса */
+        /* Анимация колес автобуса (легкое покачивание) */
         @keyframes bounce-bus {
             0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-1px); }
+            50% { transform: translateY(-2px); }
         }
         .animate-bus {
-            animation: bounce-bus 0.5s infinite ease-in-out;
+            animation: bounce-bus 0.6s infinite ease-in-out;
         }
     </style>
 </head>
@@ -77,7 +77,8 @@
 
         // --- ВСТРОЕННЫЕ ИКОНКИ (SVG) ---
         
-        const BusIcon = ({ className }) => (
+        // Стандартная иконка для заголовка
+        const HeaderBusIcon = ({ className }) => (
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
                 <path d="M18 11.0056C17.9972 10.8711 17.9861 10.7389 17.9611 10.6083C17.6583 9.06667 16.3278 7.91389 14.7139 7.82222L14.6556 7.82222H9.36667L9.27778 7.825C7.68056 7.925 6.36389 9.07222 6.05 10.5972C6.01667 10.7417 5.99722 10.8889 5.99444 11.0361C5.99444 11.0389 5.99444 11.0417 5.99444 11.0417V15.7639C5.99444 16.5917 6.66667 17.2639 7.49444 17.2639H7.66944C7.81944 17.2639 7.96111 17.225 8.08889 17.1528C8.24167 17.5194 8.60556 17.7778 9.02778 17.7778C9.53611 17.7778 9.96111 17.4167 10.0639 16.9361H13.9167C14.0222 17.4194 14.4444 17.7778 14.9528 17.7778C15.375 17.7778 15.7361 17.5194 15.8917 17.1556C16.0222 17.225 16.1667 17.2639 16.3194 17.2639H16.4944C17.3222 17.2639 17.9944 16.5917 17.9944 15.7639V11.0389C18 11.025 18 11.0139 18 11.0056ZM9.02778 16.7361C8.74167 16.7361 8.51111 16.5056 8.51111 16.2194C8.51111 15.9333 8.74167 15.7028 9.02778 15.7028C9.31389 15.7028 9.54444 15.9333 9.54444 16.2194C9.54444 16.5056 9.31389 16.7361 9.02778 16.7361ZM14.9528 16.7361C14.6667 16.7361 14.4361 16.5056 14.4361 16.2194C14.4361 15.9333 14.6667 15.7028 14.9528 15.7028C15.2389 15.7028 15.4694 15.9333 15.4694 16.2194C15.4694 16.5056 15.2389 16.7361 14.9528 16.7361ZM16.4861 13.9028H7.50556V11.2361C7.54444 10.3389 8.35833 9.53333 9.36667 9.53333H14.6444C15.65 9.53333 16.4639 10.3306 16.4861 11.2333V13.9028Z" />
             </svg>
@@ -132,8 +133,8 @@
             </svg>
         );
 
-        const LocationIcon = () => (
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        const LocationIcon = ({ className }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
               <circle cx="12" cy="10" r="3" />
             </svg>
@@ -169,6 +170,7 @@
                 icon: <BeachIcon />,
                 desc: "Маршрут к пляжу Khem Beach и курортам",
                 color: "bg-blue-600",
+                busImage: "https://www.dropbox.com/scl/fi/3ryvtmwt28oe5b3d9h3ab/Khem-Beach.png?rlkey=c867pgs25uslhdm4oxqkvgbet&st=1j10ebxu&raw=1",
                 stops: {
                     forward: ["Sun World Hon Thom", "Vui-Fest Bazaar", "New World Resort", "Khem Beach Station"],
                     backward: ["Khem Beach Station", "New World Resort", "Vui-Fest Bazaar", "Sun World Hon Thom"]
@@ -217,6 +219,7 @@
                 icon: <CityIcon />,
                 desc: "Маршрут в центр города (Duong Dong)",
                 color: "bg-teal-600",
+                busImage: "https://www.dropbox.com/scl/fi/7mnpx6rei8ijv616ntytg/Duong-Dong.png?rlkey=mxosd9i13twbq275israfxnfk&st=i91vp524&raw=1",
                 stops: {
                     forward: ["Premier Residences", "Sun World", "Vui-Fest Bazaar", "Sailing Club", "Best Western", "Long Beach Center", "Seashells Hotel"],
                     backward: ["Seashells Hotel", "Long Beach Center", "Best Western", "Sailing Club", "Vui-Fest Bazaar", "Sun World", "Premier Residences"]
@@ -296,7 +299,7 @@
                 <div className="bg-slate-900 dark:bg-slate-950 text-white p-4 pb-4 rounded-b-3xl shadow-lg transition-colors duration-500">
                     <div className="flex justify-between items-start mb-4">
                         <h1 className="text-xl font-bold flex items-center gap-2">
-                            <BusIcon className="w-6 h-6 text-yellow-400" />
+                            <HeaderBusIcon className="w-6 h-6 text-yellow-400" />
                             <span>Автобусы Sunset Town</span>
                         </h1>
                         <div className="text-xs flex items-center gap-1 opacity-70 bg-white/10 px-2 py-1 rounded-full">
@@ -410,11 +413,9 @@
             );
 
             let displayTime = "";
-            let displayStopLabel = "Следующий рейс";
             
             if (nearestStop && targetStopIndex !== -1) {
                 displayTime = nextRow[targetStopIndex];
-                displayStopLabel = `Автобус на ${targetStopName}`;
             } else {
                 const firstIdx = nextRow.findIndex(t => t !== "-");
                 displayTime = nextRow[firstIdx];
@@ -424,17 +425,27 @@
                 <div className="mx-4 mt-4 bg-gradient-to-br from-emerald-500 to-teal-700 rounded-2xl p-5 text-white shadow-lg flex flex-col relative overflow-hidden transition-all duration-500">
                     <div className="flex justify-between items-start relative z-10">
                         <div>
-                            <div className="flex items-center gap-2 mb-1">
-                                {nearestStop && (
-                                    <span className="relative flex h-2 w-2">
-                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                                    </span>
-                                )}
-                                <div className="text-emerald-100 text-xs font-bold uppercase tracking-wider">
-                                    {displayStopLabel}
+                            {/* NEW: Improved Header Logic */}
+                            {nearestStop ? (
+                                <div className="mb-3">
+                                    <div className="flex items-center gap-1.5 text-white font-bold text-sm mb-1">
+                                        {/* Animated Location Pin */}
+                                        <div className="relative flex h-3 w-3 mr-1">
+                                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                          <span className="relative inline-flex rounded-full h-3 w-3 bg-yellow-400"></span>
+                                        </div>
+                                        <span className="drop-shadow-sm">{nearestStop}</span>
+                                    </div>
+                                    <div className="text-emerald-100 text-xs opacity-90 font-medium">
+                                        Следующий автобус приедет в
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="text-emerald-100 text-xs font-bold uppercase tracking-wider mb-1">
+                                    Ближайший рейс
+                                </div>
+                            )}
+
                             <div className="text-5xl font-extrabold tracking-tight leading-none mb-1">{displayTime}</div>
                             <div className="inline-flex items-center gap-1.5 bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-medium text-emerald-50 mt-2">
                                 <HourglassIcon className="w-3 h-3" />
@@ -452,7 +463,7 @@
             );
         };
 
-        const ScheduleTable = ({ stops, schedule, currentMins, nearestStop }) => {
+        const ScheduleTable = ({ stops, schedule, currentMins, nearestStop, busImage }) => {
             const highlightColIndex = nearestStop ? stops.indexOf(nearestStop) : -1;
 
             // --- ЛОГИКА АКТИВНОГО АВТОБУСА ---
@@ -596,13 +607,18 @@
                                                         
                                                         {showBus && (
                                                             <div 
-                                                                className="absolute bottom-1 left-0 z-20 transition-all duration-1000 ease-linear"
+                                                                className="absolute bottom-1 left-0 z-20 transition-all duration-1000 ease-linear animate-bus"
                                                                 style={{
                                                                     left: `calc(30px + ${activeBus.progress * 60}%)`,
                                                                     opacity: activeBus.progress > 0.95 ? 0.5 : 1
                                                                 }}
                                                             >
-                                                                <BusIcon className="w-6 h-6 text-yellow-500 animate-bus drop-shadow-md" />
+                                                                <img 
+                                                                    src={busImage} 
+                                                                    alt="Bus" 
+                                                                    className="w-8 h-auto drop-shadow-md" // Removed transform -scale-x-100
+                                                                    style={{ display: 'block' }}
+                                                                />
                                                             </div>
                                                         )}
                                                     </td>
@@ -747,6 +763,7 @@
                             schedule={currentSchedule} 
                             currentMins={currentMins}
                             nearestStop={nearestStop}
+                            busImage={activeData.busImage}
                         />
                     </main>
                     
