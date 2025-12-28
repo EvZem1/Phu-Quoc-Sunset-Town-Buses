@@ -27,18 +27,27 @@
                         }
                     },
                     animation: {
-                        'float': 'float 30s infinite linear',
+                        'float': 'float linear infinite', // duration задается в style
                         'twinkle': 'twinkle 4s infinite ease-in-out',
-                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'glow': 'glow 6s ease-in-out infinite alternate',
+                        'rain': 'rain 0.5s linear infinite',
                     },
                     keyframes: {
                         float: {
-                            '0%': { transform: 'translateX(-10%)' },
-                            '100%': { transform: 'translateX(110%)' },
+                            '0%': { left: '-40%' },   // Начинаем далеко слева
+                            '100%': { left: '140%' }, // Заканчиваем далеко справа
                         },
                         twinkle: {
                             '0%, 100%': { opacity: 0.3, transform: 'scale(0.8)' },
                             '50%': { opacity: 1, transform: 'scale(1.1)' },
+                        },
+                        glow: {
+                            'from': { boxShadow: '0 0 20px -5px rgba(253, 224, 71, 0.5)' },
+                            'to': { boxShadow: '0 0 50px 10px rgba(253, 224, 71, 0.8)' }
+                        },
+                        rain: {
+                            '0%': { transform: 'translateY(-10vh)' },
+                            '100%': { transform: 'translateY(100vh)' }
                         }
                     }
                 }
@@ -77,7 +86,16 @@
         }
         
         .cloud-shape {
-            fill: rgba(255, 255, 255, 0.3);
+            /* Цвет задается в компоненте */
+        }
+
+        .raindrop {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.6);
+            width: 1px;
+            height: 15px;
+            top: -20px;
+            animation: rain linear infinite;
         }
     </style>
 </head>
@@ -172,32 +190,22 @@
         const formatTimeLeft = (diffMins) => { if (diffMins < 60) return `через ${diffMins} мин`; const h = Math.floor(diffMins / 60); const m = diffMins % 60; return `через ${h} ч ${m} мин`; };
 
         // --- КОМПОНЕНТ ДИНАМИЧЕСКОГО НЕБА ---
-        const SkyBackground = ({ skyState, moonPhase, userLocation }) => {
+        const SkyBackground = ({ skyState, moonPhase, userLocation, weatherState, windSpeed }) => {
             const [celestialPos, setCelestialPos] = useState({ x: -20, y: -20 });
 
-            // Расчет позиции светила (Солнца или Луны) в реальном времени
             useEffect(() => {
                 const calculatePosition = () => {
                     const now = new Date();
-                    let progress = 0; // 0 (start) -> 1 (end)
-
-                    // Если нет геолокации, используем фиксированное время
+                    let progress = 0; 
                     let startTime, endTime;
                     
                     if (userLocation && typeof SunCalc !== 'undefined') {
                         const times = SunCalc.getTimes(now, userLocation.lat, userLocation.lng);
-                        
-                        // ДЕНЬ: Солнце от восхода до заката
                         if (skyState === 'day' || skyState === 'dawn' || skyState === 'dusk') {
-                            // Берем немного шире: от dawn до night, чтобы солнце плавно выходило и заходило
                             startTime = times.dawn; 
                             endTime = times.dusk; 
-                        } 
-                        // НОЧЬ: Луна от заката до восхода (упрощенно)
-                        else {
+                        } else {
                             startTime = times.night;
-                            // Если сейчас ночь до полуночи, конец - это рассвет завтра
-                            // Если после полуночи, начало - это закат вчера
                             if (now.getHours() > 12) {
                                 const tomorrow = new Date(now);
                                 tomorrow.setDate(tomorrow.getDate() + 1);
@@ -212,18 +220,12 @@
                             }
                         }
                     } else {
-                        // ФОЛЛБЭК БЕЗ ГЕО:
                         const nowMins = now.getHours() * 60 + now.getMinutes();
-                        // День: 06:00 (360) -> 18:00 (1080)
                         if (skyState !== 'night') {
                             progress = (nowMins - 360) / (1080 - 360);
                         } else {
-                            // Ночь: 18:00 -> 06:00
-                            if (nowMins >= 1080) { // 18:00 - 23:59
-                                progress = (nowMins - 1080) / (24*60 + 360 - 1080);
-                            } else { // 00:00 - 06:00
-                                progress = (nowMins + (24*60 - 1080)) / (24*60 + 360 - 1080);
-                            }
+                            if (nowMins >= 1080) progress = (nowMins - 1080) / (24*60 + 360 - 1080);
+                            else progress = (nowMins + (24*60 - 1080)) / (24*60 + 360 - 1080);
                         }
                     }
 
@@ -233,26 +235,19 @@
                         progress = elapsed / totalDuration;
                     }
 
-                    // Ограничиваем прогресс 0..1 для безопасности
                     progress = Math.max(0, Math.min(1, progress));
-
-                    // Расчет координат (парабола для Y)
-                    // X: 0% -> 100%
-                    // Y: Низ -> Верх -> Низ. Используем sin(PI * progress)
-                    // top: 100% (низ) -> 10% (верх) -> 100% (низ)
                     const x = progress * 100;
-                    const y = 100 - (Math.sin(progress * Math.PI) * 90); // 100% = дно, 10% = зенит
-
+                    const y = 100 - (Math.sin(progress * Math.PI) * 90); 
                     setCelestialPos({ x, y });
                 };
 
                 calculatePosition();
-                const interval = setInterval(calculatePosition, 60000); // Обновляем раз в минуту
+                const interval = setInterval(calculatePosition, 60000); 
                 return () => clearInterval(interval);
             }, [skyState, userLocation]);
 
             const stars = useMemo(() => {
-                if (skyState !== 'night') return [];
+                if (skyState !== 'night' || weatherState.isCloudy) return [];
                 return Array.from({ length: 35 }).map((_, i) => ({
                     top: Math.random() * 70 + '%',
                     left: Math.random() * 100 + '%',
@@ -260,7 +255,7 @@
                     delay: Math.random() * 3 + 's',
                     duration: Math.random() * 3 + 2 + 's'
                 }));
-            }, [skyState]);
+            }, [skyState, weatherState.isCloudy]);
 
             const gradients = {
                 night: 'bg-gradient-to-b from-slate-950 via-slate-900 to-indigo-950', 
@@ -269,49 +264,67 @@
                 dusk: 'bg-gradient-to-b from-indigo-900 via-purple-800 to-orange-500', 
             };
 
+            const weatherOverlay = weatherState.isCloudy || weatherState.isRainy ? 'after:content-[""] after:absolute after:inset-0 after:bg-slate-900/30' : '';
+            const rainDrops = useMemo(() => {
+                if (!weatherState.isRainy) return [];
+                return Array.from({ length: 50 }).map((_, i) => ({
+                    left: Math.random() * 100 + '%',
+                    animationDuration: (0.5 + Math.random() * 0.3) + 's',
+                    animationDelay: (Math.random() * 2) + 's'
+                }));
+            }, [weatherState.isRainy]);
+
+            const clouds = useMemo(() => {
+               const showClouds = weatherState.isCloudy || weatherState.isRainy || skyState === 'day' || skyState === 'dawn';
+               if (!showClouds) return [];
+
+               const count = weatherState.isCloudy || weatherState.isRainy ? 8 : 4;
+               return Array.from({length: count}).map((_, i) => ({
+                   top: (Math.random() * 40 + 5) + '%',
+                   // left handled by keyframe
+                   scale: 0.5 + Math.random(),
+                   opacity: (weatherState.isCloudy ? 0.6 : 0.4) + Math.random() * 0.2,
+                   duration: (40 + Math.random() * 40) / (windSpeed > 10 ? 2 : 1) + 's',
+                   delay: -(Math.random() * 60) + 's' 
+               }));
+            }, [weatherState, skyState, windSpeed]);
+
             return (
-                <div className={`absolute inset-0 overflow-hidden -z-0 transition-all duration-1000 ${gradients[skyState] || gradients.day}`}>
-                    {/* STARS */}
-                    {skyState === 'night' && stars.map((s, i) => (
+                <div className={`absolute inset-0 overflow-hidden -z-0 transition-all duration-1000 ${gradients[skyState] || gradients.day} ${weatherOverlay}`}>
+                    {skyState === 'night' && !weatherState.isCloudy && stars.map((s, i) => (
                         <div key={i} className="star" style={{ top: s.top, left: s.left, width: s.size, height: s.size, '--delay': s.delay, '--duration': s.duration }} />
                     ))}
-
-                    {/* CELESTIAL BODY (SUN or MOON) */}
-                    <div 
-                        className="absolute w-16 h-16 transition-all duration-[60000ms] ease-linear"
-                        style={{ 
-                            left: `calc(${celestialPos.x}% - 2rem)`, // Центрируем (-2rem = half width)
-                            top: `calc(${celestialPos.y}% - 2rem)`
-                        }}
-                    >
-                        {skyState === 'night' ? (
-                            // MOON
-                            <svg width="100%" height="100%" viewBox="0 0 100 100" className="drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]">
-                                <circle cx="50" cy="50" r="40" fill="#fbbf24" opacity={moonPhase > 0.4 && moonPhase < 0.6 ? 1 : 0.2} />
-                                <path d="M50 10 A40 40 0 1 0 50 90 A 30 40 0 1 1 50 10" fill="#fef3c7" />
-                            </svg>
-                        ) : (
-                            // SUN
-                            <div className="w-full h-full rounded-full bg-yellow-300 blur-md shadow-[0_0_40px_rgba(253,224,71,0.8)] animate-pulse-slow"></div>
-                        )}
-                    </div>
-
-                    {/* CLOUDS (Only Day/Dawn) */}
-                    {(skyState === 'day' || skyState === 'dawn') && (
-                        <>
-                            <div className="absolute top-12 left-0 w-24 h-8 opacity-40 animate-float" style={{ animationDuration: '40s' }}><svg viewBox="0 0 100 50" className="cloud-shape"><path d="M10,30 Q25,10 40,30 T70,30 T90,30" stroke="white" strokeWidth="20" strokeLinecap="round" /></svg></div>
-                            <div className="absolute top-20 left-1/2 w-32 h-10 opacity-30 animate-float" style={{ animationDuration: '60s', animationDelay: '-20s' }}><svg viewBox="0 0 100 50" className="cloud-shape"><path d="M10,30 Q25,10 40,30 T70,30 T90,30" stroke="white" strokeWidth="20" strokeLinecap="round" /></svg></div>
-                        </>
+                    {(!weatherState.isCloudy && !weatherState.isRainy) && (
+                        <div className="absolute w-16 h-16 transition-all duration-[60000ms] ease-linear" style={{ left: `calc(${celestialPos.x}% - 2rem)`, top: `calc(${celestialPos.y}% - 2rem)` }}>
+                            {skyState === 'night' ? (
+                                <svg width="100%" height="100%" viewBox="0 0 100 100" className="drop-shadow-[0_0_15px_rgba(255,255,255,0.6)]">
+                                    <circle cx="50" cy="50" r="40" fill="#fbbf24" opacity={moonPhase > 0.4 && moonPhase < 0.6 ? 1 : 0.2} />
+                                    <path d="M50 10 A40 40 0 1 0 50 90 A 30 40 0 1 1 50 10" fill="#fef3c7" />
+                                </svg>
+                            ) : (
+                                <div className="w-full h-full rounded-full bg-yellow-300 blur-md shadow-[0_0_40px_rgba(253,224,71,0.8)] animate-glow"></div>
+                            )}
+                        </div>
                     )}
+                    {clouds.map((c, i) => (
+                        <div key={i} className="absolute animate-float" style={{ top: c.top, width: '100px', height: '50px', animationDuration: c.duration, animationDelay: c.delay, opacity: c.opacity, transform: `scale(${c.scale})` }}>
+                             <svg viewBox="0 0 100 50" className="cloud-shape" style={{ fill: weatherState.isCloudy ? 'rgba(200, 210, 220, 0.7)' : 'rgba(255, 255, 255, 0.4)' }}>
+                                <path d="M10,30 Q25,10 40,30 T70,30 T90,30" stroke={weatherState.isCloudy ? '#94a3b8' : 'white'} strokeWidth="20" strokeLinecap="round" />
+                             </svg>
+                        </div>
+                    ))}
+                    {weatherState.isRainy && rainDrops.map((r, i) => (
+                        <div key={i} className="raindrop" style={{ left: r.left, animationDuration: r.animationDuration, animationDelay: r.animationDelay }} />
+                    ))}
                 </div>
             );
         };
 
         // ... Header ...
-        const Header = ({ activeRoute, setActiveRoute, skyState, moonPhase, userLocation }) => (
+        const Header = ({ activeRoute, setActiveRoute, skyState, moonPhase, userLocation, weatherState, windSpeed }) => (
             <div className="sticky top-0 z-30 bg-transparent shadow-sm">
                 <div className="relative text-white p-4 pb-4 rounded-b-3xl shadow-lg overflow-hidden transition-all duration-500">
-                    <SkyBackground skyState={skyState} moonPhase={moonPhase} userLocation={userLocation} />
+                    <SkyBackground skyState={skyState} moonPhase={moonPhase} userLocation={userLocation} weatherState={weatherState} windSpeed={windSpeed} />
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
                             <h1 className="text-xl font-bold flex items-center gap-2 drop-shadow-md">
@@ -432,7 +445,6 @@
                 if (minutes >= 20) return 'from-emerald-500 to-teal-700'; // Green
                 if (minutes >= 10) return 'from-yellow-500 to-amber-600'; // Yellow/Amber
                 if (minutes >= 5) {
-                    // Gradual shift 10 -> 5
                     if (minutes >= 8) return 'from-amber-500 to-orange-600'; // Amber-Orange
                     return 'from-orange-500 to-red-600'; // Orange-Red
                 }
@@ -613,6 +625,41 @@
             const [moonPhase, setMoonPhase] = useState(0.5);
             const [userLocation, setUserLocation] = useState(null);
             const [userStops, setUserStops] = useState(null);
+            const [weatherState, setWeatherState] = useState({ isRainy: false, isCloudy: false });
+            const [windSpeed, setWindSpeed] = useState(0);
+
+            // Fetch Weather
+            useEffect(() => {
+                if (!userLocation) return;
+                
+                const fetchWeather = async () => {
+                    try {
+                        const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${userLocation.lat}&longitude=${userLocation.lng}&current=weather_code,wind_speed_10m`);
+                        const data = await response.json();
+                        const code = data.current.weather_code;
+                        const wind = data.current.wind_speed_10m;
+                        
+                        setWindSpeed(wind);
+
+                        // WMO Codes mapping
+                        // 0, 1: Clear
+                        // 2, 3: Cloudy
+                        // 51-67, 80-82: Rain
+                        // 95-99: Storm
+                        
+                        const isCloudy = [2, 3, 45, 48].includes(code);
+                        const isRainy = [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99].includes(code);
+                        
+                        setWeatherState({ isRainy, isCloudy });
+                    } catch (e) {
+                        console.error("Weather fetch failed", e);
+                    }
+                };
+
+                fetchWeather();
+                const interval = setInterval(fetchWeather, 600000); // Every 10 mins
+                return () => clearInterval(interval);
+            }, [userLocation]);
 
             useEffect(() => {
                 const updateTheme = () => {
@@ -694,7 +741,7 @@
 
             return (
                 <div className={`min-h-screen ${globalBgClass} max-w-lg mx-auto shadow-2xl md:my-10 overflow-hidden relative md:rounded-[30px] border-slate-200 dark:border-slate-800 md:border transition-colors duration-1000`}>
-                    <Header activeRoute={activeRouteId} setActiveRoute={setActiveRouteId} isDark={isDark} skyState={skyState} moonPhase={moonPhase} userLocation={userLocation} />
+                    <Header activeRoute={activeRouteId} setActiveRoute={setActiveRouteId} isDark={isDark} skyState={skyState} moonPhase={moonPhase} userLocation={userLocation} weatherState={weatherState} windSpeed={windSpeed} />
                     <main>
                         <DirectionToggle routeData={activeData} direction={direction} setDirection={setDirection} />
                         {userStops && userStops.length > 0 && (
