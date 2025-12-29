@@ -132,7 +132,7 @@
         const SunIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>);
         const MoonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-200"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>);
 
-        // --- ДАННЫЕ РАСПИСАНИЯ ---
+        // --- ДАННЫЕ РАСПИСАНИЯ --- (то же самое)
         const ROUTES = {
             1: {
                 id: 1,
@@ -207,7 +207,7 @@
              return `через ${h} ч ${m} мин`;
         };
 
-        // ... SkyBackground ...
+        // --- КОМПОНЕНТ ДИНАМИЧЕСКОГО НЕБА ---
         const SkyBackground = ({ skyState, moonPhase, userLocation, weatherState, windSpeed }) => {
             const [celestialPos, setCelestialPos] = useState({ x: -20, y: -20 });
 
@@ -223,18 +223,20 @@
                             startTime = times.dawn; 
                             endTime = times.dusk; 
                         } else {
-                            startTime = times.night;
                             if (now.getHours() > 12) {
                                 const tomorrow = new Date(now);
                                 tomorrow.setDate(tomorrow.getDate() + 1);
                                 const tomorrowTimes = SunCalc.getTimes(tomorrow, userLocation.lat, userLocation.lng);
-                                endTime = tomorrowTimes.dawn;
+                                // Night: from today's sunset to tomorrow's sunrise
+                                startTime = times.sunset; 
+                                endTime = tomorrowTimes.sunrise; 
                             } else {
                                 const yesterday = new Date(now);
                                 yesterday.setDate(yesterday.getDate() - 1);
                                 const yesterdayTimes = SunCalc.getTimes(yesterday, userLocation.lat, userLocation.lng);
-                                startTime = yesterdayTimes.night;
-                                endTime = times.dawn;
+                                // Night: from yesterday's sunset to today's sunrise
+                                startTime = yesterdayTimes.sunset;
+                                endTime = times.sunrise; 
                             }
                         }
                     } else {
@@ -255,7 +257,8 @@
 
                     progress = Math.max(0, Math.min(1, progress));
                     const x = progress * 100;
-                    const y = 100 - (Math.sin(progress * Math.PI) * 90); 
+                    // Modified curve to keep it a bit higher
+                    const y = 85 - (Math.sin(progress * Math.PI) * 75); 
                     setCelestialPos({ x, y });
                 };
 
@@ -543,6 +546,7 @@
             );
         };
 
+        // ... ScheduleTable ...
         const ScheduleTable = ({ stops, schedule, currentMins, userStops, busImage }) => {
             const closestStopIndex = userStops && userStops.length > 0 ? userStops[0].index : -1;
             let activeBus = null;
@@ -559,7 +563,6 @@
                     const m = getMinutes(row[i]);
                     if (m !== -1) { endMins = m; break; }
                 }
-
                 if (startMins !== -1 && endMins !== -1) {
                     if (currentMins >= startMins && currentMins <= endMins) {
                         let currentSegmentStartIdx = -1;
