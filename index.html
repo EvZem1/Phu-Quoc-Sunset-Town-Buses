@@ -106,18 +106,14 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- КООРДИНАТЫ ОСТАНОВОК (С разделением по направлениям) ---
+        // --- КООРДИНАТЫ ОСТАНОВОК (Исправленные) ---
         const STOP_COORDINATES = {
             "Khem Beach Station": { lat: 10.0275, lng: 104.0337 }, 
             "New World Resort": { lat: 10.0390, lng: 104.0270 }, 
             "Premier Residences": { lat: 10.0390, lng: 104.0220 },
-            // Vui-Fest Bazaar: Разные точки для разных сторон дороги
             "Vui-Fest Bazaar": { 
-                // forward: В сторону Пляжа (Khem) / Юг
                 forward: { lat: 10.035101, lng: 104.003310 }, 
-                // backward: В сторону Сансет Тауна / Север (от пляжа)
                 backward: { lat: 10.035628, lng: 104.003250 },
-                // Дефолт на случай ошибки (центр)
                 default: { lat: 10.03536, lng: 104.00328 }
             },
             "Sun World Hon Thom": { lat: 10.0260, lng: 104.0080 }, 
@@ -218,8 +214,11 @@
 
         // ... SkyBackground, Header, DirectionToggle ... 
 
-        const SkyBackground = ({ skyState, moonPhase, userLocation, weatherState, windSpeed }) => {
+        const SkyBackground = ({ skyState, moonPhase, userLocation, weatherState, windSpeed, stableLocation }) => {
             const [celestialPos, setCelestialPos] = useState({ x: -20, y: -20 });
+            
+            // Используем stableLocation для расчета позиции солнца/луны
+            const locToUse = stableLocation || userLocation;
 
             useEffect(() => {
                 const calculatePosition = () => {
@@ -227,8 +226,8 @@
                     let progress = 0; 
                     let startTime, endTime;
                     
-                    if (userLocation && typeof SunCalc !== 'undefined') {
-                        const times = SunCalc.getTimes(now, userLocation.lat, userLocation.lng);
+                    if (locToUse && typeof SunCalc !== 'undefined') {
+                        const times = SunCalc.getTimes(now, locToUse.lat, locToUse.lng);
                         if (skyState === 'day' || skyState === 'dawn' || skyState === 'dusk') {
                             startTime = times.dawn; 
                             endTime = times.dusk; 
@@ -237,12 +236,12 @@
                             if (now.getHours() > 12) {
                                 const tomorrow = new Date(now);
                                 tomorrow.setDate(tomorrow.getDate() + 1);
-                                const tomorrowTimes = SunCalc.getTimes(tomorrow, userLocation.lat, userLocation.lng);
+                                const tomorrowTimes = SunCalc.getTimes(tomorrow, locToUse.lat, locToUse.lng);
                                 endTime = tomorrowTimes.dawn;
                             } else {
                                 const yesterday = new Date(now);
                                 yesterday.setDate(yesterday.getDate() - 1);
-                                const yesterdayTimes = SunCalc.getTimes(yesterday, userLocation.lat, userLocation.lng);
+                                const yesterdayTimes = SunCalc.getTimes(yesterday, locToUse.lat, locToUse.lng);
                                 startTime = yesterdayTimes.night;
                                 endTime = times.dawn;
                             }
@@ -272,7 +271,7 @@
                 calculatePosition();
                 const interval = setInterval(calculatePosition, 60000); 
                 return () => clearInterval(interval);
-            }, [skyState, userLocation]);
+            }, [skyState, locToUse]);
 
             const stars = useMemo(() => {
                 if (skyState !== 'night' || weatherState.isCloudy) return [];
@@ -303,10 +302,10 @@
             }, [weatherState.isRainy]);
 
             const clouds = useMemo(() => {
-               const showClouds = weatherState.isCloudy || weatherState.isRainy || skyState === 'day' || skyState === 'dawn';
+               const showClouds = weatherState.isCloudy || weatherState.isRainy; // STRICT WEATHER LOGIC
                if (!showClouds) return [];
 
-               const count = weatherState.isCloudy || weatherState.isRainy ? 8 : 4;
+               const count = 8;
                return Array.from({length: count}).map((_, i) => ({
                    top: (Math.random() * 40 + 5) + '%',
                    scale: 0.5 + Math.random(),
@@ -348,10 +347,10 @@
         };
 
         // ... Header ...
-        const Header = ({ activeRoute, setActiveRoute, skyState, moonPhase, userLocation, weatherState, windSpeed }) => (
+        const Header = ({ activeRoute, setActiveRoute, skyState, moonPhase, userLocation, weatherState, windSpeed, stableLocation }) => (
             <div className="sticky top-0 z-30 bg-transparent shadow-sm">
                 <div className="relative text-white p-4 pb-4 rounded-b-3xl shadow-lg overflow-hidden transition-all duration-500">
-                    <SkyBackground skyState={skyState} moonPhase={moonPhase} userLocation={userLocation} weatherState={weatherState} windSpeed={windSpeed} />
+                    <SkyBackground skyState={skyState} moonPhase={moonPhase} userLocation={userLocation} weatherState={weatherState} windSpeed={windSpeed} stableLocation={stableLocation} />
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
                             <h1 className="text-xl font-bold flex items-center gap-2 drop-shadow-md">
@@ -697,13 +696,14 @@
             const [userStops, setUserStops] = useState(null);
             const [weatherState, setWeatherState] = useState({ isRainy: false, isCloudy: false });
             const [windSpeed, setWindSpeed] = useState(0);
+            const [stableLocation, setStableLocation] = useState(null);
 
             // Fetch Weather
             useEffect(() => {
-                if (!userLocation) return;
+                if (!stableLocation) return; // Use stable location
                 const fetchWeather = async () => {
                     try {
-                        const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${userLocation.lat}&longitude=${userLocation.lng}&current=weather_code,wind_speed_10m`);
+                        const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${stableLocation.lat}&longitude=${stableLocation.lng}&current=weather_code,wind_speed_10m`);
                         const data = await response.json();
                         const code = data.current.weather_code;
                         const wind = data.current.wind_speed_10m;
@@ -716,7 +716,7 @@
                 fetchWeather();
                 const interval = setInterval(fetchWeather, 600000); 
                 return () => clearInterval(interval);
-            }, [userLocation]);
+            }, [stableLocation]);
 
             // Theme & Sky
             useEffect(() => {
@@ -730,8 +730,10 @@
                         setMoonPhase(moon.phase);
                     }
 
-                    if (userLocation && typeof SunCalc !== 'undefined') {
-                        const times = SunCalc.getTimes(now, userLocation.lat, userLocation.lng);
+                    // Use stableLocation for sun calculations
+                    const loc = stableLocation;
+                    if (loc && typeof SunCalc !== 'undefined') {
+                        const times = SunCalc.getTimes(now, loc.lat, loc.lng);
                         if (now < times.dawn || now > times.night) { currentState = 'night'; isDarkTime = true; }
                         else if (now < times.sunrise) { currentState = 'dawn'; isDarkTime = false; } 
                         else if (now < times.sunsetStart) { currentState = 'day'; isDarkTime = false; }
@@ -753,7 +755,7 @@
                 updateTheme();
                 const timer = setInterval(updateTheme, 60000);
                 return () => clearInterval(timer);
-            }, [userLocation]);
+            }, [stableLocation]); // Trigger on stableLocation
 
             // Timer (Update every 1s for smooth bus and accurate countdown)
             useEffect(() => {
@@ -769,9 +771,17 @@
                 if ("geolocation" in navigator) {
                     const watchId = navigator.geolocation.watchPosition(
                         (position) => {
-                            setUserLocation({
+                            const newLoc = {
                                 lat: position.coords.latitude,
                                 lng: position.coords.longitude
+                            };
+                            setUserLocation(newLoc); // Immediate update for distance
+                            
+                            // Stabilize for weather/sky (update if moved > 2km or first fix)
+                            setStableLocation(prev => {
+                                if (!prev) return newLoc;
+                                const d = calculateDistance(prev.lat, prev.lng, newLoc.lat, newLoc.lng);
+                                return d > 2 ? newLoc : prev; 
                             });
                         },
                         (error) => console.log("Geo error/denied", error),
@@ -793,7 +803,7 @@
                         const entry = STOP_COORDINATES[coordKey];
                         // Если есть специфичные координаты для направления
                         if (entry.forward && entry.backward) {
-                            coords = entry[direction];
+                             coords = entry[direction];
                         } else {
                             coords = entry;
                         }
@@ -827,7 +837,7 @@
 
             return (
                 <div className={`min-h-screen ${globalBgClass} max-w-lg mx-auto shadow-2xl md:my-10 overflow-hidden relative md:rounded-[30px] border-slate-200 dark:border-slate-800 md:border transition-colors duration-1000`}>
-                    <Header activeRoute={activeRouteId} setActiveRoute={setActiveRouteId} isDark={isDark} skyState={skyState} moonPhase={moonPhase} userLocation={userLocation} weatherState={weatherState} windSpeed={windSpeed} />
+                    <Header activeRoute={activeRouteId} setActiveRoute={setActiveRouteId} isDark={isDark} skyState={skyState} moonPhase={moonPhase} userLocation={userLocation} weatherState={weatherState} windSpeed={windSpeed} stableLocation={stableLocation} />
                     <main>
                         <DirectionToggle routeData={activeData} direction={direction} setDirection={setDirection} />
                         {userStops && userStops.length > 0 && (
