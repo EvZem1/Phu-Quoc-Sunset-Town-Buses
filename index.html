@@ -106,18 +106,26 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // --- КООРДИНАТЫ ОСТАНОВОК ---
+        // --- КООРДИНАТЫ ОСТАНОВОК (С разделением по направлениям) ---
         const STOP_COORDINATES = {
-            "Khem Beach Station": { lat: 10.0435, lng: 104.0260 },
-            "New World Resort": { lat: 10.0410, lng: 104.0240 },
+            "Khem Beach Station": { lat: 10.0275, lng: 104.0337 }, 
+            "New World Resort": { lat: 10.0390, lng: 104.0270 }, 
             "Premier Residences": { lat: 10.0390, lng: 104.0220 },
-            "Vui-Fest Bazaar": { lat: 10.0240, lng: 104.0070 },
-            "Sun World Hon Thom": { lat: 10.0255, lng: 104.0055 }, 
-            "Sun World": { lat: 10.0255, lng: 104.0055 },
+            // Vui-Fest Bazaar: Разные точки для разных сторон дороги
+            "Vui-Fest Bazaar": { 
+                // forward: В сторону Пляжа (Khem) / Юг
+                forward: { lat: 10.035101, lng: 104.003310 }, 
+                // backward: В сторону Сансет Тауна / Север (от пляжа)
+                backward: { lat: 10.035628, lng: 104.003250 },
+                // Дефолт на случай ошибки (центр)
+                default: { lat: 10.03536, lng: 104.00328 }
+            },
+            "Sun World Hon Thom": { lat: 10.0260, lng: 104.0080 }, 
+            "Sun World": { lat: 10.0260, lng: 104.0080 },
             "Sailing Club": { lat: 10.1450, lng: 103.9750 },
-            "Best Western": { lat: 10.1550, lng: 103.9720 },
-            "Long Beach Center": { lat: 10.1980, lng: 103.9650 },
-            "Seashells Hotel": { lat: 10.2160, lng: 103.9560 }
+            "Best Western": { lat: 10.1600, lng: 103.9700 },
+            "Long Beach Center": { lat: 10.2045, lng: 103.9665 },
+            "Seashells Hotel": { lat: 10.2185, lng: 103.9567 }
         };
 
         // --- ИКОНКИ ---
@@ -132,7 +140,7 @@
         const SunIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-yellow-400"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>);
         const MoonIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-200"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>);
 
-        // --- ДАННЫЕ РАСПИСАНИЯ --- (то же самое)
+        // --- ДАННЫЕ РАСПИСАНИЯ ---
         const ROUTES = {
             1: {
                 id: 1,
@@ -194,6 +202,7 @@
         
         const isPast = (timeStr, currentMins) => { 
             const mins = getMinutes(timeStr); 
+            // Considered passed only if full minute is over (mins < floor(current))
             return mins !== -1 && mins < Math.floor(currentMins); 
         };
         
@@ -207,7 +216,8 @@
              return `через ${h} ч ${m} мин`;
         };
 
-        // --- КОМПОНЕНТ ДИНАМИЧЕСКОГО НЕБА ---
+        // ... SkyBackground, Header, DirectionToggle ... 
+
         const SkyBackground = ({ skyState, moonPhase, userLocation, weatherState, windSpeed }) => {
             const [celestialPos, setCelestialPos] = useState({ x: -20, y: -20 });
 
@@ -223,20 +233,18 @@
                             startTime = times.dawn; 
                             endTime = times.dusk; 
                         } else {
+                            startTime = times.night;
                             if (now.getHours() > 12) {
                                 const tomorrow = new Date(now);
                                 tomorrow.setDate(tomorrow.getDate() + 1);
                                 const tomorrowTimes = SunCalc.getTimes(tomorrow, userLocation.lat, userLocation.lng);
-                                // Night: from today's sunset to tomorrow's sunrise
-                                startTime = times.sunset; 
-                                endTime = tomorrowTimes.sunrise; 
+                                endTime = tomorrowTimes.dawn;
                             } else {
                                 const yesterday = new Date(now);
                                 yesterday.setDate(yesterday.getDate() - 1);
                                 const yesterdayTimes = SunCalc.getTimes(yesterday, userLocation.lat, userLocation.lng);
-                                // Night: from yesterday's sunset to today's sunrise
-                                startTime = yesterdayTimes.sunset;
-                                endTime = times.sunrise; 
+                                startTime = yesterdayTimes.night;
+                                endTime = times.dawn;
                             }
                         }
                     } else {
@@ -257,7 +265,6 @@
 
                     progress = Math.max(0, Math.min(1, progress));
                     const x = progress * 100;
-                    // Modified curve to keep it a bit higher
                     const y = 85 - (Math.sin(progress * Math.PI) * 75); 
                     setCelestialPos({ x, y });
                 };
@@ -296,10 +303,10 @@
             }, [weatherState.isRainy]);
 
             const clouds = useMemo(() => {
-               const showClouds = weatherState.isCloudy || weatherState.isRainy; // STRICT WEATHER LOGIC
+               const showClouds = weatherState.isCloudy || weatherState.isRainy || skyState === 'day' || skyState === 'dawn';
                if (!showClouds) return [];
 
-               const count = 8;
+               const count = weatherState.isCloudy || weatherState.isRainy ? 8 : 4;
                return Array.from({length: count}).map((_, i) => ({
                    top: (Math.random() * 40 + 5) + '%',
                    scale: 0.5 + Math.random(),
@@ -563,6 +570,7 @@
                     const m = getMinutes(row[i]);
                     if (m !== -1) { endMins = m; break; }
                 }
+
                 if (startMins !== -1 && endMins !== -1) {
                     if (currentMins >= startMins && currentMins <= endMins) {
                         let currentSegmentStartIdx = -1;
@@ -570,9 +578,10 @@
                         let isStationary = false;
                         for (let i = 0; i < row.length; i++) {
                             const m = getMinutes(row[i]);
+                            // Use Math.floor to match integer minutes from schedule with float currentMins
                             if (m !== -1 && m <= currentMins) {
                                 currentSegmentStartIdx = i;
-                                if (m === currentMins) isStationary = true;
+                                if (m === Math.floor(currentMins)) isStationary = true;
                             }
                         }
                         if (currentSegmentStartIdx !== -1) {
@@ -755,12 +764,20 @@
                 return () => clearInterval(interval);
             }, []);
 
+            // Updated Geolocation to use watchPosition for real-time updates
             useEffect(() => {
                 if ("geolocation" in navigator) {
-                    navigator.geolocation.getCurrentPosition(
-                        (position) => setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude }),
-                        (error) => console.log("Geo denied")
+                    const watchId = navigator.geolocation.watchPosition(
+                        (position) => {
+                            setUserLocation({
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude
+                            });
+                        },
+                        (error) => console.log("Geo error/denied", error),
+                        { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
                     );
+                    return () => navigator.geolocation.clearWatch(watchId);
                 }
             }, []);
 
@@ -770,14 +787,27 @@
                 const currentStops = activeData.stops[direction];
                 const stopsWithDist = currentStops.map((stopName, index) => {
                     const coordKey = Object.keys(STOP_COORDINATES).find(key => stopName.includes(key));
+                    let coords = null;
+                    
                     if (coordKey) {
-                        const coords = STOP_COORDINATES[coordKey];
+                        const entry = STOP_COORDINATES[coordKey];
+                        // Если есть специфичные координаты для направления
+                        if (entry.forward && entry.backward) {
+                            coords = entry[direction];
+                        } else {
+                            coords = entry;
+                        }
+                    }
+
+                    if (coords) {
                         const dist = calculateDistance(userLocation.lat, userLocation.lng, coords.lat, coords.lng);
                         return { name: stopName, dist: dist, index: index };
                     }
                     return null;
                 }).filter(item => item !== null);
+
                 stopsWithDist.sort((a, b) => a.dist - b.dist);
+
                 if (stopsWithDist.length > 0 && stopsWithDist[0].dist < 15) setUserStops(stopsWithDist);
                 else setUserStops(null);
             }, [userLocation, activeRouteId, direction]);
