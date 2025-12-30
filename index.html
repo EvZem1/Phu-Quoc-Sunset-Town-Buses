@@ -116,8 +116,9 @@
                 backward: { lat: 10.035628, lng: 104.003250 },
                 default: { lat: 10.03536, lng: 104.00328 }
             },
-            "Sun World Hon Thom": { lat: 10.0260, lng: 104.0080 }, 
-            "Sun World": { lat: 10.0260, lng: 104.0080 },
+            // Updated Sun World coordinates based on user input
+            "Sun World Hon Thom": { lat: 10.030187, lng: 104.007234 }, 
+            "Sun World": { lat: 10.030187, lng: 104.007234 },
             "Sailing Club": { lat: 10.1450, lng: 103.9750 },
             "Best Western": { lat: 10.1600, lng: 103.9700 },
             "Long Beach Center": { lat: 10.2045, lng: 103.9665 },
@@ -302,10 +303,10 @@
             }, [weatherState.isRainy]);
 
             const clouds = useMemo(() => {
-               const showClouds = weatherState.isCloudy || weatherState.isRainy; // STRICT WEATHER LOGIC
+               const showClouds = weatherState.isCloudy || weatherState.isRainy || skyState === 'day' || skyState === 'dawn';
                if (!showClouds) return [];
 
-               const count = 8;
+               const count = weatherState.isCloudy || weatherState.isRainy ? 8 : 4;
                return Array.from({length: count}).map((_, i) => ({
                    top: (Math.random() * 40 + 5) + '%',
                    scale: 0.5 + Math.random(),
