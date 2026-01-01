@@ -135,7 +135,7 @@
                 atStop: "НА ОСТАНОВКЕ",
                 noBus: "На сегодня рейсов больше нет 😴",
                 scheduleTitle: "Полное расписание",
-                timelineTitle: "Карта маршрута",
+                timelineTitle: "Схема маршрута",
                 swipeHint: "Листайте таблицу влево-вправо",
                 youAreHere: "Вы здесь",
                 nearStop: "Рядом с остановкой:",
@@ -146,8 +146,11 @@
                 hour: "ч",
                 through: "через",
                 sky: { night: 'Ночь 🌙', dawn: 'Утро 🌅', day: 'День ☀️', dusk: 'Вечер 🌇' },
-                viewTable: "Таблица",
-                viewMap: "Карта"
+                viewTable: "Расписание",
+                viewMap: "На карте",
+                busMain: "АВТОБУС",
+                buildRoute: "Построить маршрут",
+                toStop: "до остановки"
             },
             en: {
                 title: "Sunset Town Bus",
@@ -172,8 +175,11 @@
                 hour: "h",
                 through: "in",
                 sky: { night: 'Night 🌙', dawn: 'Morning 🌅', day: 'Day ☀️', dusk: 'Evening 🌇' },
-                viewTable: "Table",
-                viewMap: "Map"
+                viewTable: "Schedule",
+                viewMap: "On Map",
+                busMain: "BUS",
+                buildRoute: "Get Directions",
+                toStop: "to stop"
             },
             vi: {
                 title: "Xe Buýt Sunset Town",
@@ -198,8 +204,11 @@
                 hour: "giờ",
                 through: "sau",
                 sky: { night: 'Đêm 🌙', dawn: 'Sáng 🌅', day: 'Ngày ☀️', dusk: 'Chiều 🌇' },
-                viewTable: "Bảng giờ",
-                viewMap: "Bản đồ"
+                viewTable: "Lịch trình",
+                viewMap: "Bản đồ",
+                busMain: "XE BUÝT",
+                buildRoute: "Chỉ đường",
+                toStop: "đến trạm"
             }
         };
 
@@ -216,6 +225,13 @@
             "Long Beach Center": { lat: 10.2045, lng: 103.9665 },
             "Seashells Hotel": { lat: 10.2185, lng: 103.9567 }
         };
+
+        const LANDMARKS_DATA = [
+            { lat: 10.0265, lng: 104.0310, icon: "💋", nameRu: "Kiss Bridge", nameEn: "Kiss Bridge", nameVi: "Cầu Hôn" },
+            { lat: 10.1550, lng: 104.0010, icon: "✈️", nameRu: "Аэропорт", nameEn: "Airport", nameVi: "Sân Bay" },
+            { lat: 10.2200, lng: 103.9630, icon: "🏮", nameRu: "Рынок", nameEn: "Market", nameVi: "Chợ Đêm" },
+            { lat: 10.0320, lng: 104.0050, icon: "🚠", nameRu: "Канатка", nameEn: "Cable Car", nameVi: "Cáp Treo" },
+        ];
 
         const ROUTES = {
             1: {
@@ -283,7 +299,6 @@
         const formatDistance = (km, lang) => km < 1 ? `${Math.round(km * 1000)} ${DICTIONARY[lang].meters}` : `${km.toFixed(1)} ${DICTIONARY[lang].km}`;
         const getMinutes = (timeStr) => { if (!timeStr || timeStr === "-") return -1; const [h, m] = timeStr.split(':').map(Number); return h * 60 + m; };
         const getCurrentMinutesFloat = () => { const now = new Date(); return now.getHours() * 60 + now.getMinutes() + now.getSeconds()/60; };
-        const getCurrentMinutes = () => { const now = new Date(); return now.getHours() * 60 + now.getMinutes(); };
         const isPast = (timeStr, currentMins) => { const mins = getMinutes(timeStr); return mins !== -1 && mins < Math.floor(currentMins); };
         const formatTimeLeft = (seconds, lang) => {
              const t = DICTIONARY[lang];
@@ -303,9 +318,10 @@
         const InfoIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>);
         const HourglassIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 22h14" /><path d="M5 2h14" /><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22" /><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2" /></svg>);
         const LocationIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>);
-        const GlobeIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>);
         const MapIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon><line x1="8" y1="2" x2="8" y2="18"></line><line x1="16" y1="6" x2="16" y2="22"></line></svg>);
         const TableIcon = () => (<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="12" y1="3" x2="12" y2="21"></line></svg>);
+        const CompassIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>);
+        const NavigationIcon = ({ className }) => (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>);
 
         // --- COMPONENTS ---
         
@@ -442,7 +458,7 @@
                          {isAtStop ? (
                             <div className="flex items-center justify-between w-full py-1">
                                 <div className="flex flex-col items-start">
-                                    <div className="text-3xl font-black uppercase tracking-tight leading-none mb-1 flex items-center gap-2 drop-shadow-md">BUS</div>
+                                    <div className="text-3xl font-black uppercase tracking-tight leading-none mb-1 flex items-center gap-2 drop-shadow-md">{t.busMain}</div>
                                     <div className="text-lg font-bold opacity-90 leading-tight">{t.atStop}</div>
                                     {targetStop && <div className="mt-2 text-xs font-medium opacity-80 bg-black/20 px-3 py-1 rounded-full">{targetStop.name}</div>}
                                 </div>
@@ -475,9 +491,9 @@
             );
         };
 
-        // --- NEW GEOMAP COMPONENT ---
-        const SchematicMap = ({ stops, activeBus, busImage, userLocation, activeRouteId, direction }) => {
-            const svgRef = useRef(null);
+        // --- NEW GEOMAP COMPONENT (IMPROVED VISUALS) ---
+        const SchematicMap = ({ stops, activeBus, busImage, userLocation, activeRouteId, direction, lang, userStops }) => {
+            const t = DICTIONARY[lang];
             
             // 1. Get Coordinates for current stops
             const stopsWithCoords = useMemo(() => {
@@ -485,7 +501,6 @@
                     const key = Object.keys(STOP_COORDINATES).find(k => stopName.includes(k));
                     let coords = STOP_COORDINATES[key];
                     if (coords && coords.forward && coords.backward) {
-                         // Logic from App component to get correct coords for route 2 specific directions
                          coords = activeRouteId === 2 ? (direction === 'forward' ? coords.backward : coords.forward) : coords[direction] || coords.default;
                     } else if (coords && coords.default) {
                         coords = coords.default;
@@ -495,25 +510,31 @@
             }, [stops, activeRouteId, direction]);
 
             // 2. Projection Logic
-            // Find min/max to create bounding box, then normalize
-            const padding = 0.005; // degrees padding
+            // Normalize coordinates to 0-100 space, but keep aspects somewhat sane
             const lats = stopsWithCoords.map(s => s.lat);
             const lngs = stopsWithCoords.map(s => s.lng);
-            const minLat = Math.min(...lats) - padding;
-            const maxLat = Math.max(...lats) + padding;
-            const minLng = Math.min(...lngs) - padding;
-            const maxLng = Math.max(...lngs) + padding;
+            
+            // Add padding to bounds
+            const latPadding = (Math.max(...lats) - Math.min(...lats)) * 0.2 || 0.005;
+            const lngPadding = (Math.max(...lngs) - Math.min(...lngs)) * 0.2 || 0.005;
+            
+            const minLat = Math.min(...lats) - latPadding;
+            const maxLat = Math.max(...lats) + latPadding;
+            const minLng = Math.min(...lngs) - lngPadding;
+            const maxLng = Math.max(...lngs) + lngPadding;
 
             const project = (lat, lng) => {
                 const x = ((lng - minLng) / (maxLng - minLng)) * 100;
-                // SVG Y goes down, Lat goes up. So invert Y.
-                const y = 100 - ((lat - minLat) / (maxLat - minLat)) * 100; 
+                const y = 100 - ((lat - minLat) / (maxLat - minLat)) * 100; // Invert Y
                 return { x, y };
             };
 
-            // 3. Build SVG Path
+            // 3. Build SVG Path (Rounded)
             const points = stopsWithCoords.map(s => project(s.lat, s.lng));
-            const pathData = points.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(" ");
+            const pathData = points.map((p, i) => {
+                if (i === 0) return `M ${p.x} ${p.y}`;
+                return `L ${p.x} ${p.y}`; // Straight lines for clarity
+            }).join(" ");
 
             // 4. Calculate Bus Position
             let busPos = { x: -10, y: -10 };
@@ -531,51 +552,85 @@
             // 5. User Position
             let userPos = null;
             if (userLocation) {
-                userPos = project(userLocation.lat, userLocation.lng);
-                // Clamp to view
-                if(userPos.x < 0 || userPos.x > 100 || userPos.y < 0 || userPos.y > 100) userPos = null; // Only show if inside map view roughly
-                else userPos = project(userLocation.lat, userLocation.lng);
+                const p = project(userLocation.lat, userLocation.lng);
+                // Clamp slightly to ensure it doesn't fly too far off if GPS is weird
+                if(p.x > -50 && p.x < 150 && p.y > -50 && p.y < 150) userPos = p;
             }
+            
+            // Navigate Handler
+            const handleNavigate = () => {
+                if (userStops && userStops.length > 0) {
+                     const stopName = userStops[0].name;
+                     // Find coord
+                     const target = stopsWithCoords.find(s => s.name === stopName);
+                     if (target) {
+                         const url = `https://www.google.com/maps/dir/?api=1&destination=${target.lat},${target.lng}`;
+                         window.open(url, '_blank');
+                     }
+                }
+            };
 
             return (
-                <div className="w-full h-80 bg-slate-100 dark:bg-slate-800 rounded-xl relative overflow-hidden border border-slate-200 dark:border-slate-700 shadow-inner">
-                    <svg viewBox="0 0 100 100" className="w-full h-full p-4" preserveAspectRatio="xMidYMid meet">
-                        {/* Connecting Line */}
-                        <path d={pathData} fill="none" stroke="currentColor" className="text-slate-300 dark:text-slate-600" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-                        
-                        {/* Stops */}
+                <div className="relative">
+                    <div className="w-full h-[400px] bg-slate-50 dark:bg-slate-800 rounded-xl relative overflow-hidden border border-slate-200 dark:border-slate-700 shadow-xl">
+                        {/* Map Background Grid */}
+                        <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle, #cbd5e1 1px, transparent 1px)', backgroundSize: '30px 30px', opacity: 0.3 }}></div>
+
+                        <svg viewBox="0 0 100 100" className="w-full h-full p-10" preserveAspectRatio="none">
+                            {/* Route Line Border */}
+                            <path d={pathData} fill="none" stroke="white" className="dark:stroke-slate-900 drop-shadow-sm" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+                            {/* Route Line Main */}
+                            <path d={pathData} fill="none" stroke="currentColor" className="text-blue-500 dark:text-blue-400" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+                            
+                            {/* Stops */}
+                            {points.map((p, i) => {
+                                const isStart = i === 0;
+                                const isEnd = i === points.length - 1;
+                                const r = isStart || isEnd ? 4 : 2.5;
+                                return (
+                                    <g key={i}>
+                                        <circle cx={p.x} cy={p.y} r={r+1.5} className="fill-white dark:fill-slate-900" />
+                                        <circle cx={p.x} cy={p.y} r={r} className={`${isStart ? 'fill-green-500' : (isEnd ? 'fill-red-500' : 'fill-slate-300 dark:fill-slate-500')}`} />
+                                    </g>
+                                )
+                            })}
+                            
+                            {/* Bus */}
+                            {activeBus && (
+                                <g transform={`translate(${busPos.x}, ${busPos.y})`} className="transition-all duration-1000 ease-linear">
+                                    <circle r="6" className="fill-yellow-400 shadow-sm border-2 border-white" />
+                                    <image href={busImage} x="-4" y="-4" height="8" width="8" />
+                                </g>
+                            )}
+                            
+                            {/* User Position */}
+                            {userPos && (
+                                <g transform={`translate(${userPos.x}, ${userPos.y})`}>
+                                    <circle r="8" className="fill-blue-500/30 animate-ping" />
+                                    <circle r="3" className="fill-blue-600 stroke-white stroke-[1]" />
+                                </g>
+                            )}
+                        </svg>
+
+                        {/* Text Labels Overlay */}
                         {points.map((p, i) => (
-                            <g key={i}>
-                                <circle cx={p.x} cy={p.y} r="3" className="fill-white dark:fill-slate-800 stroke-slate-400 dark:stroke-slate-500 stroke-[1.5]" />
-                            </g>
+                             <div key={i} className={`absolute text-[9px] font-bold px-2 py-0.5 rounded shadow-sm border whitespace-nowrap z-10 
+                                  ${i === 0 || i === points.length -1 ? 'bg-slate-800 text-white border-slate-700' : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-600'}`} 
+                                  style={{ left: `${p.x}%`, top: `${p.y}%`, transform: `translate(-50%, ${i % 2 === 0 ? '14px' : '-24px'})` }}>
+                                 {stopsWithCoords[i].name.split('(')[0].trim()}
+                             </div>
                         ))}
-                        
-                        {/* User Location */}
-                        {userPos && (
-                            <g transform={`translate(${userPos.x}, ${userPos.y})`}>
-                                <circle r="4" className="fill-blue-500/30 animate-ping" />
-                                <circle r="2" className="fill-blue-500 stroke-white stroke-1" />
-                            </g>
-                        )}
+                    </div>
 
-                        {/* Bus */}
-                        {activeBus && (
-                            <g transform={`translate(${busPos.x}, ${busPos.y})`} className="transition-all duration-1000 ease-linear">
-                                <circle r="5" className="fill-yellow-400 shadow-sm" />
-                                <image href={busImage} x="-4" y="-4" height="8" width="8" />
-                            </g>
-                        )}
-                    </svg>
-
-                    {/* Labels overlay (HTML for better text rendering) */}
-                    {points.map((p, i) => (
-                         <div key={i} className="absolute text-[8px] font-bold text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-900/80 px-1 rounded backdrop-blur-sm pointer-events-none whitespace-nowrap" 
-                              style={{ left: `${p.x}%`, top: `${p.y}%`, transform: 'translate(-50%, 10px)' }}>
-                             {stopsWithCoords[i].name.split(' ')[0]}
-                         </div>
-                    ))}
-                    
-                    <div className="absolute bottom-2 right-2 text-[8px] text-slate-400">Map Scale: Auto</div>
+                    {/* Navigation Button Overlay */}
+                    {userStops && userStops.length > 0 && (
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-full px-6 flex justify-center z-20">
+                            <button onClick={handleNavigate} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-transform active:scale-95 text-sm w-full justify-center border border-blue-400">
+                                <NavigationIcon className="w-4 h-4" /> 
+                                <span>{t.buildRoute} {t.toStop} "{userStops[0].name.split(' ')[0]}"</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             );
         };
@@ -737,7 +792,7 @@
                             <h3 className="px-6 text-xs font-bold text-slate-400 uppercase mb-2 flex items-center gap-2"><InfoIcon /> {viewMode === 'map' ? t.timelineTitle : t.scheduleTitle}</h3>
                             <div className="px-4">
                                 {viewMode === 'map' ? 
-                                    <SchematicMap stops={currentStops} activeBus={activeBus} busImage={activeData.busImage} userLocation={userLocation} activeRouteId={activeRouteId} direction={direction} /> : 
+                                    <SchematicMap stops={currentStops} activeBus={activeBus} busImage={activeData.busImage} userLocation={userLocation} activeRouteId={activeRouteId} direction={direction} lang={lang} userStops={userStops} /> : 
                                     <ScheduleTable stops={currentStops} schedule={currentSchedule} currentMins={currentMins} userStops={userStops} busImage={activeData.busImage} activeBus={activeBus} lang={lang} />
                                 }
                             </div>
